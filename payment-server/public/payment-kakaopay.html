@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>카카오페이 결제 · 동네사주카페</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --ink: #1C2333; --gold: #C9A24B; --gold-light: #E8D4A0; --paper: #F7F3E8; --paper-2: #FDFBF5; --line: #E3D9C0; }
+    body {
+      font-family: "Pretendard", "Noto Sans KR", "맑은 고딕", sans-serif; background: var(--paper); color: var(--ink);
+      max-width: 480px; margin: 60px auto; text-align: center; padding: 0 20px;
+    }
+    h2 { font-size: 17px; font-weight: 800; margin-bottom: 16px; }
+    .order-summary {
+      background: var(--paper-2); border: 1px solid var(--line); border-radius: 6px; padding: 18px 20px;
+      margin-bottom: 22px; font-size: 13.5px; text-align: left; border-top: 3px solid var(--gold);
+    }
+    .button {
+      width: 100%; padding: 14px; border: none; border-radius: 5px;
+      background: #FEE500; color: #191919; font-size: 15px; font-weight: 700; cursor: pointer;
+    }
+    .button:disabled { opacity: 0.5; }
+  </style>
+</head>
+<body>
+  <h2>易 동네사주카페 결제 (카카오페이)</h2>
+  <div class="order-summary" id="orderSummary">주문 정보를 불러오는 중...</div>
+  <button class="button" id="payBtn" disabled>카카오페이로 결제하기</button>
+
+  <script>
+    (async function () {
+      const params = new URLSearchParams(window.location.search);
+      const orderId = params.get("orderId");
+      const btn = document.getElementById("payBtn");
+      const summaryEl = document.getElementById("orderSummary");
+
+      if (!orderId) {
+        summaryEl.textContent = "주문 정보가 없습니다.";
+        return;
+      }
+
+      const res = await fetch(`/api/orders/${orderId}`);
+      const data = await res.json();
+      if (!data.success) {
+        summaryEl.textContent = "주문 정보를 찾을 수 없습니다.";
+        return;
+      }
+      const order = data.order;
+      summaryEl.innerHTML = `<strong>${order.orderName}</strong><br>결제금액: ${order.amount.toLocaleString()}원<br>주문자: ${order.customerName || "-"}`;
+      btn.disabled = false;
+
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        btn.textContent = "결제창 준비 중...";
+        try {
+          const readyRes = await fetch("/api/kakaopay/ready", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orderId }),
+          });
+          const readyData = await readyRes.json();
+          if (!readyData.success) {
+            alert("결제 준비 실패: " + readyData.message);
+            btn.disabled = false;
+            btn.textContent = "카카오페이로 결제하기";
+            return;
+          }
+          const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+          window.location.href = isMobile ? readyData.next_redirect_mobile_url : readyData.next_redirect_pc_url;
+        } catch (err) {
+          alert("오류가 발생했습니다: " + err.message);
+          btn.disabled = false;
+          btn.textContent = "카카오페이로 결제하기";
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

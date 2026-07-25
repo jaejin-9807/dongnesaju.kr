@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>결제 처리 중 · 동네사주카페</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --ink: #1C2333; --gold: #C9A24B; --gold-light: #E8D4A0; --paper: #F7F3E8; --paper-2: #FDFBF5; --text-sub: #6B6252; --line: #E3D9C0; }
+    body {
+      font-family: "Pretendard", "Noto Sans KR", "맑은 고딕", sans-serif; background: var(--paper); color: var(--ink);
+      max-width: 480px; margin: 80px auto; text-align: center; padding: 0 20px;
+    }
+    .icon { font-size: 46px; margin-bottom: 16px; }
+    .title { font-size: 18px; font-weight: 800; margin-bottom: 8px; }
+    .desc { color: var(--text-sub); font-size: 13.5px; line-height: 1.7; }
+    .box {
+      background: var(--paper-2); border: 1px solid var(--line); border-radius: 6px; padding: 18px 20px;
+      margin-top: 22px; font-size: 13px; text-align: left; word-break: break-all; border-top: 3px solid var(--gold);
+    }
+    a.btn {
+      display: inline-block; margin-top: 20px; padding: 12px 24px; background: var(--ink);
+      color: var(--gold-light); text-decoration: none; border-radius: 5px; font-weight: 700; font-size: 13.5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="icon" id="icon">⏳</div>
+  <div class="title" id="title">결제를 확인하고 있습니다...</div>
+  <div class="desc" id="desc">잠시만 기다려 주세요.</div>
+  <div class="box" id="box" style="display:none;"></div>
+  <a class="btn" id="myPageLink" href="/my.html" style="display:none;">마이페이지에서 확인하기</a>
+
+  <script>
+    (async function () {
+      const params = new URLSearchParams(window.location.search);
+      const orderId = params.get("orderId");
+      const paymentId = params.get("paymentId");
+      const iconEl = document.getElementById("icon");
+      const titleEl = document.getElementById("title");
+      const descEl = document.getElementById("desc");
+      const boxEl = document.getElementById("box");
+      const myPageLink = document.getElementById("myPageLink");
+
+      if (!orderId || !paymentId) {
+        iconEl.textContent = "❌";
+        titleEl.textContent = "결제 정보가 올바르지 않습니다.";
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/naverpay/apply", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId, paymentId }),
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          iconEl.textContent = "✅";
+          titleEl.textContent = "결제가 완료되었습니다!";
+          descEl.textContent = "신청하신 내용을 확인한 뒤, 입력하신 연락처로 결과지를 직접 전달해드려요.";
+          boxEl.style.display = "block";
+          boxEl.innerHTML =
+            `주문번호: ${data.order.orderId}<br>상품명: ${data.order.orderName}<br>결제금액: ${data.order.amount.toLocaleString()}원`;
+          myPageLink.style.display = "inline-block";
+        } else {
+          iconEl.textContent = "❌";
+          titleEl.textContent = "결제 승인에 실패했습니다.";
+          descEl.textContent = data.message || "";
+        }
+      } catch (err) {
+        iconEl.textContent = "❌";
+        titleEl.textContent = "결제 확인 중 오류가 발생했습니다.";
+        descEl.textContent = err.message;
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+# 사주 엔진 / PDF 생성 파이썬 의존성
+# 설치:  pip install -r requirements.txt
+#        python -m playwright install chromium     (주 렌더 엔진 Chromium 다운로드)
+#
+# 렌더 엔진 우선순위: Playwright(Chromium) → WeasyPrint → LibreOffice(폴백)
+#  - Playwright: 주 엔진(권장). 위 'playwright install chromium' 필요.
+#  - WeasyPrint: 폴백/리눅스. Windows에서는 GTK 런타임이 별도로 필요할 수 있음.
+#  - LibreOffice: 최후 폴백. soffice 실행 파일이 PATH에 있으면 자동 사용.
+
+playwright>=1.40
+weasyprint>=60
+pypdf>=4.0
+matplotlib>=3.6
+fonttools>=4.40
+Pillow>=9.0

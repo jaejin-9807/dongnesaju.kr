@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>마이페이지 · 동네사주카페</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --ink: #1C2333; --gold: #C9A24B; --gold-light: #E8D4A0;
+    --paper: #F7F3E8; --paper-2: #FDFBF5; --text-sub: #6B6252; --line: #E3D9C0;
+  }
+  body {
+    font-family: "Pretendard", "Noto Sans KR", "맑은 고딕", sans-serif;
+    background: var(--paper); color: var(--ink); min-height: 100vh;
+  }
+  header {
+    background: var(--ink); color: var(--gold-light); padding: 16px 20px;
+    border-bottom: 3px solid var(--gold); display: flex; align-items: center; justify-content: space-between;
+  }
+  header a.logo { color: var(--gold-light); text-decoration: none; font-weight: 800; font-size: 17px; }
+  header .nav-right { display: flex; align-items: center; gap: 14px; font-size: 12.5px; }
+  header .nav-right a { color: var(--gold-light); text-decoration: none; }
+  main { max-width: 720px; margin: 0 auto; padding: 30px 20px 60px; }
+  h1 { font-size: 20px; font-weight: 800; margin-bottom: 4px; }
+  .sub { font-size: 13px; color: var(--text-sub); margin-bottom: 20px; }
+
+  .order-card {
+    background: var(--paper-2); border: 1px solid var(--line); border-radius: 6px;
+    padding: 18px 20px; margin-bottom: 14px; box-shadow: 0 4px 14px rgba(28,35,51,0.06);
+    border-top: 3px solid var(--gold);
+  }
+  .order-card .row1 { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .order-card .product-name { font-size: 15.5px; font-weight: 800; }
+  .order-card .amount { font-size: 15px; font-weight: 800; color: var(--ink); }
+  .order-card .meta { font-size: 12px; color: var(--text-sub); margin-bottom: 10px; }
+  .status-badge {
+    display: inline-block; font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 3px;
+  }
+  .status-pending { background: #F0E2CC; color: #7A5C3E; }
+  .status-waiting { background: #FFF3CD; color: #8A6D3B; }
+  .status-done { background: #D8ECD8; color: #2E5A2E; }
+  .status-failed { background: #F5D6D6; color: #A33; }
+
+  .wait-note { font-size: 12px; color: var(--text-sub); margin-top: 8px; padding: 10px 12px; background: var(--paper); border-radius: 4px; }
+  .empty { text-align: center; padding: 60px 20px; color: var(--text-sub); font-size: 14px; }
+  .empty a { color: var(--ink); font-weight: 700; }
+
+  .pay-btn {
+    margin-top: 10px; padding: 9px 16px; border: none; border-radius: 4px; background: var(--ink);
+    color: var(--gold-light); font-size: 12.5px; font-weight: 700; cursor: pointer;
+  }
+  .cancel-btn {
+    margin-top: 10px; margin-left: 8px; padding: 9px 16px; border: 1px solid var(--line); border-radius: 4px;
+    background: transparent; color: #A33; font-size: 12.5px; font-weight: 700; cursor: pointer;
+  }
+  .cancel-btn:hover { background: #F5D6D6; }
+
+  @media (max-width: 480px) {
+    header { padding: 12px 14px; }
+    main { padding: 20px 14px 50px; }
+    h1 { font-size: 17px; }
+    .order-card { padding: 14px 15px; }
+    .order-card .row1 { flex-direction: column; align-items: flex-start; gap: 4px; }
+    .order-card .product-name { font-size: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="logo" href="/">易 동네사주카페</a>
+  <div class="nav-right">
+    <a href="/">홈으로</a>
+    <a href="#" id="logoutLink">로그아웃</a>
+  </div>
+</header>
+
+<main>
+  <h1>마이페이지</h1>
+  <div class="sub" id="userInfo">불러오는 중...</div>
+  <div id="orderList"></div>
+</main>
+
+<script>
+  function statusInfo(order) {
+    if (order.status === "PENDING_PAYMENT") return { label: "결제대기", cls: "status-pending" };
+    if (order.status === "PAID_WAITING_DELIVERY") return { label: "결제완료 · 확인 중", cls: "status-waiting" };
+    if (order.status === "DELIVERED") return { label: "결과지 전달완료", cls: "status-done" };
+    if (order.status === "FAILED") return { label: "결제실패", cls: "status-failed" };
+    if (order.status === "CANCELLED") return { label: "취소됨", cls: "status-failed" };
+    return { label: order.status || "-", cls: "status-pending" };
+  }
+
+  function formatRemain(deliverableAt) {
+    const remain = new Date(deliverableAt).getTime() - Date.now();
+    if (remain <= 0) return "곧 확인 예정입니다";
+    const h = Math.floor(remain / 3600000);
+    const m = Math.floor((remain % 3600000) / 60000);
+    return `사장님 확인까지 약 ${h > 0 ? h + "시간 " : ""}${m}분 남았어요`;
+  }
+
+  (async function init() {
+    try {
+      const meRes = await fetch("/api/auth/me");
+      const meData = await meRes.json();
+      if (!meData.success) {
+        window.location.href = "/login.html";
+        return;
+      }
+      document.getElementById("userInfo").textContent = `${meData.user.name}님 (${meData.user.email})`;
+
+      const ordersRes = await fetch("/api/orders/mine");
+      const ordersData = await ordersRes.json();
+      const listEl = document.getElementById("orderList");
+
+      if (!ordersData.success || !ordersData.orders.length) {
+        listEl.innerHTML = `<div class="empty">아직 등록한 주문이 없습니다.<br><a href="/">상품 보러 가기</a></div>`;
+        return;
+      }
+
+      listEl.innerHTML = ordersData.orders.map((order) => {
+        const st = statusInfo(order);
+        let extra = "";
+        if (order.status === "PENDING_PAYMENT") {
+          extra = `
+            <button class="pay-btn" onclick="location.href='/select-payment.html?orderId=${order.orderId}'">결제하러 가기</button>
+            <button class="cancel-btn" onclick="cancelOrder('${order.orderId}')">상품/생년월일이 잘못됐어요 (주문 취소)</button>
+          `;
+        } else if (order.status === "PAID_WAITING_DELIVERY" && order.deliverableAt) {
+          extra = `<div class="wait-note">⏳ ${formatRemain(order.deliverableAt)}. 결과지는 사장님이 확인 후 입력하신 이메일/연락처로 직접 전달해드려요.</div>`;
+        }
+        // 결과지(PDF)가 준비된 주문은 언제든 다시 받을 수 있게 한다.
+        if (order.pdfFilename || order.status === "DELIVERED") {
+          extra += `<button class="pay-btn" onclick="location.href='/api/orders/${order.orderId}/pdf'">📄 결과지 다시 받기 (PDF)</button>`;
+        }
+        return `
+          <div class="order-card">
+            <div class="row1">
+              <div class="product-name">${order.orderName}</div>
+              <div class="amount">${order.amount.toLocaleString()}원</div>
+            </div>
+            <div class="meta">주문번호: ${order.orderId} · ${new Date(order.createdAt).toLocaleString("ko-KR")}</div>
+            <span class="status-badge ${st.cls}">${st.label}</span>
+            ${extra}
+          </div>
+        `;
+      }).join("");
+    } catch (e) {
+      document.getElementById("orderList").innerHTML = `<div class="empty">주문 정보를 불러오지 못했습니다: ${e.message}</div>`;
+    }
+  })();
+
+  document.getElementById("logoutLink").addEventListener("click", async (e) => {
+    e.preventDefault();
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.href = "/";
+  });
+
+  async function cancelOrder(orderId) {
+    if (!confirm("이 주문을 취소하시겠어요? 취소 후 홈페이지에서 상품과 생년월일 정보를 다시 정확히 입력해 새로 주문해 주세요.")) return;
+    try {
+      const res = await fetch(`/api/orders/${orderId}/cancel`, { method: "POST" });
+      const data = await res.json();
+      if (!data.success) {
+        alert(data.message || "주문 취소에 실패했습니다.");
+        return;
+      }
+      alert("주문이 취소되었습니다. 홈페이지에서 새로 주문해 주세요.");
+      window.location.href = "/";
+    } catch (e) {
+      alert("서버와 통신 중 오류가 발생했습니다: " + e.message);
+    }
+  }
+</script>
+</body>
+</html>

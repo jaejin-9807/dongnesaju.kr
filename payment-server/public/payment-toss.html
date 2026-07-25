@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>토스페이먼츠 결제 · 동네사주카페</title>
+  <script src="https://js.tosspayments.com/v2/standard"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --ink: #1C2333; --gold: #C9A24B; --gold-light: #E8D4A0;
+      --paper: #F7F3E8; --paper-2: #FDFBF5; --text-sub: #6B6252; --line: #E3D9C0;
+    }
+    body {
+      font-family: "Pretendard", "Noto Sans KR", "맑은 고딕", sans-serif;
+      background: var(--paper); max-width: 480px; margin: 40px auto; padding: 0 20px; color: var(--ink);
+    }
+    h2 { font-size: 17px; font-weight: 800; color: var(--ink); margin-bottom: 16px; }
+    .order-summary {
+      background: var(--paper-2); border: 1px solid var(--line); border-radius: 6px; padding: 18px 20px;
+      margin-bottom: 20px; font-size: 13.5px; border-top: 3px solid var(--gold);
+    }
+    .order-summary .amount { font-weight: 800; color: var(--ink); font-size: 17px; margin-top: 8px; }
+    .button {
+      width: 100%; padding: 14px; border: none; border-radius: 5px;
+      background: var(--ink); color: var(--gold-light); font-size: 15px; font-weight: 700; cursor: pointer;
+    }
+    .button:hover { opacity: 0.9; }
+    .button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .notice { margin-top: 14px; font-size: 11.5px; color: var(--text-sub); line-height: 1.6; text-align: center; }
+  </style>
+</head>
+<body>
+  <h2>易 동네사주카페 결제 (토스페이먼츠)</h2>
+  <div class="order-summary" id="orderSummary">주문 정보를 불러오는 중...</div>
+
+  <button class="button" id="payment-button" disabled>결제 정보를 불러오는 중...</button>
+  <div class="notice">
+    테스트 환경입니다. 아래 테스트 카드로 결제해보세요.<br>
+    카드번호 4330-0000-0000-0005 / 유효기간·CVC·비밀번호는 아무 값이나 입력
+  </div>
+
+  <script>
+    main();
+
+    async function main() {
+      const params = new URLSearchParams(window.location.search);
+      const orderId = params.get("orderId");
+      const orderSummaryEl = document.getElementById("orderSummary");
+      const button = document.getElementById("payment-button");
+
+      if (!orderId) {
+        orderSummaryEl.textContent = "주문 정보가 없습니다. 주문서를 다시 작성해 주세요.";
+        return;
+      }
+
+      const orderRes = await fetch(`/api/orders/${orderId}`);
+      const orderData = await orderRes.json();
+      if (!orderData.success) {
+        orderSummaryEl.textContent = "주문 정보를 찾을 수 없습니다.";
+        return;
+      }
+      const order = orderData.order;
+      orderSummaryEl.innerHTML =
+        `<strong>${order.orderName}</strong><br>주문자: ${order.customerName || "-"}` +
+        `<div class="amount">${order.amount.toLocaleString()}원</div>`;
+
+      const keyRes = await fetch("/api/toss/client-key");
+      const { clientKey } = await keyRes.json();
+
+      const tossPayments = TossPayments(clientKey);
+      const payment = tossPayments.payment({ customerKey: TossPayments.ANONYMOUS });
+
+      button.disabled = false;
+      button.textContent = `${order.amount.toLocaleString()}원 결제하기`;
+
+      button.addEventListener("click", async function () {
+        button.disabled = true;
+        try {
+          await payment.requestPayment({
+            method: "CARD",
+            amount: {
+              currency: "KRW",
+              value: order.amount,
+            },
+            orderId: order.orderId,
+            orderName: order.orderName,
+            successUrl: window.location.origin + "/toss-success.html",
+            failUrl: window.location.origin + "/toss-fail.html",
+            customerEmail: order.customerEmail || undefined,
+            customerName: order.customerName || undefined,
+            customerMobilePhone: order.customerPhone ? order.customerPhone.replace(/-/g, "") : undefined,
+            card: {
+              useEscrow: false,
+              flowMode: "DEFAULT",
+              useCardPoint: false,
+              useAppCardOnly: false,
+            },
+          });
+        } catch (err) {
+          button.disabled = false;
+          button.textContent = `${order.amount.toLocaleString()}원 결제하기`;
+          if (err.code === "USER_CANCEL") {
+          } else {
+            alert("결제 요청 중 오류가 발생했습니다: " + (err.message || err));
+          }
+        }
+      });
+    }
+  </script>
+</body>
+</html>

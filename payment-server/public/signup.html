@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>회원가입 · 동네사주카페</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --ink: #1C2333; --gold: #C9A24B; --gold-light: #E8D4A0;
+    --paper: #F7F3E8; --paper-2: #FDFBF5; --text-sub: #6B6252; --line: #E3D9C0;
+  }
+  body {
+    font-family: "Pretendard", "Noto Sans KR", "맑은 고딕", sans-serif;
+    background: var(--paper); color: var(--ink); min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  header {
+    width: 100%; background: var(--ink); color: var(--gold-light);
+    padding: 18px 20px; text-align: center; border-bottom: 3px solid var(--gold);
+  }
+  header a { color: var(--gold-light); text-decoration: none; font-weight: 800; font-size: 17px; }
+  .wrap { max-width: 380px; width: 100%; padding: 50px 20px; }
+  .box {
+    background: var(--paper-2); border-radius: 8px; padding: 32px 26px;
+    box-shadow: 0 8px 28px rgba(28,35,51,0.10); border: 1px solid var(--line); border-top: 3px solid var(--gold);
+  }
+  .box h1 { font-size: 19px; font-weight: 800; margin-bottom: 22px; text-align: center; }
+  .social-btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; padding: 12px; border-radius: 5px; border: 1px solid var(--line);
+    background: #fff; font-size: 13.5px; font-weight: 700; cursor: pointer; margin-bottom: 9px; color: var(--ink);
+  }
+  .social-btn.naver { background: #03C75A; color: #fff; border: none; }
+  .social-btn.kakao { background: #FEE500; color: #3C1E1E; border: none; }
+  .social-btn.google { background: #fff; }
+  .divider { display: flex; align-items: center; gap: 10px; margin: 18px 0; color: var(--text-sub); font-size: 11.5px; }
+  .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+  .form-row { margin-bottom: 12px; }
+  .form-row label { display: block; font-size: 12px; font-weight: 700; margin-bottom: 5px; }
+  .form-row input {
+    width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: 5px;
+    font-size: 13.5px; background: var(--paper); font-family: inherit;
+  }
+  .form-row input:focus { outline: none; border-color: var(--gold); }
+  .submit-btn {
+    width: 100%; padding: 13px; border: none; border-radius: 5px; background: var(--ink);
+    color: var(--gold-light); font-size: 14.5px; font-weight: 700; cursor: pointer; margin-top: 6px;
+  }
+  .submit-btn:hover { opacity: 0.9; }
+  .msg { font-size: 12.5px; color: #B03A3A; margin-top: 10px; text-align: center; min-height: 16px; }
+  .bottom-link { text-align: center; margin-top: 16px; font-size: 12.5px; color: var(--text-sub); }
+  .bottom-link a { color: var(--ink); font-weight: 700; text-decoration: none; }
+</style>
+</head>
+<body>
+
+<header><a href="/">易 동네사주카페</a></header>
+
+<div class="wrap">
+  <div class="box">
+    <h1>회원가입</h1>
+
+    <button class="social-btn naver" id="naverBtn">N  네이버로 시작하기</button>
+    <button class="social-btn kakao" id="kakaoBtn">💬  카카오로 시작하기</button>
+    <button class="social-btn google" id="googleBtn">G  구글로 시작하기</button>
+
+    <div class="divider">또는 이메일로 가입</div>
+
+    <div class="form-row"><label>이름</label><input type="text" id="name" placeholder="예: 김재진" /></div>
+    <div class="form-row"><label>이메일</label><input type="email" id="email" placeholder="이메일" /></div>
+    <div class="form-row"><label>휴대폰 번호 (선택)</label><input type="tel" id="phone" placeholder="010-1234-5678" /></div>
+    <div class="form-row"><label>비밀번호</label><input type="password" id="password" placeholder="4자 이상" /></div>
+    <button class="submit-btn" id="signupBtn">회원가입</button>
+    <div class="msg" id="msg"></div>
+
+    <div class="bottom-link">이미 계정이 있으신가요? <a href="/login.html">로그인</a></div>
+  </div>
+</div>
+
+<script>
+  const msg = document.getElementById("msg");
+
+  document.getElementById("naverBtn").addEventListener("click", () => { window.location.href = "/api/auth/naver"; });
+  document.getElementById("kakaoBtn").addEventListener("click", () => { window.location.href = "/api/auth/kakao"; });
+  document.getElementById("googleBtn").addEventListener("click", () => { window.location.href = "/api/auth/google"; });
+
+  (function showSocialErrorIfAny() {
+    const params = new URLSearchParams(window.location.search);
+    const err = params.get("socialError");
+    if (err) {
+      msg.style.color = "#8A6D3B";
+      msg.textContent = err;
+    }
+  })();
+
+  document.getElementById("signupBtn").addEventListener("click", async () => {
+    const name = document.getElementById("name").value.trim();
+    const email = document.getElementById("email").value.trim();
+    const phone = document.getElementById("phone").value.trim();
+    const password = document.getElementById("password").value;
+    msg.style.color = "#B03A3A";
+    if (!name || !email || !password) {
+      msg.textContent = "이름, 이메일, 비밀번호는 필수입니다.";
+      return;
+    }
+    try {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, phone, password }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        msg.textContent = data.message || "회원가입에 실패했습니다.";
+        return;
+      }
+      window.location.href = "/my.html";
+    } catch (e) {
+      msg.textContent = "서버와 통신 중 오류가 발생했습니다: " + e.message;
+    }
+  });
+</script>
+</body>
+</html>

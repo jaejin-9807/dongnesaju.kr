@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>결제 실패 · 동네사주카페</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --ink: #1C2333; --gold: #C9A24B; --gold-light: #E8D4A0; --paper: #F7F3E8; --text-sub: #6B6252; }
+    body {
+      font-family: "Pretendard", "Noto Sans KR", "맑은 고딕", sans-serif; background: var(--paper); color: var(--ink);
+      max-width: 480px; margin: 80px auto; text-align: center; padding: 0 16px;
+    }
+    .icon { font-size: 46px; margin-bottom: 16px; }
+    .title { font-size: 18px; font-weight: 800; margin-bottom: 8px; color: #B03A3A; }
+    .desc { color: var(--text-sub); font-size: 13.5px; line-height: 1.6; }
+    a.btn {
+      display: inline-block; margin-top: 24px; padding: 12px 24px; background: var(--ink);
+      color: var(--gold-light); text-decoration: none; border-radius: 5px; font-weight: 700; font-size: 13.5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="icon">😥</div>
+  <div class="title">결제가 취소되었거나 실패했습니다.</div>
+  <div class="desc" id="desc"></div>
+  <a class="btn" href="/">처음으로 돌아가기</a>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+    const message = params.get("message");
+    document.getElementById("desc").textContent = message ? `${message} (${code || ""})` : "다시 시도해 주세요.";
+  </script>
+</body>
+</html>

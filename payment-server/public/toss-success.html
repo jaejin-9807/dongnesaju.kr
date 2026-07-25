@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>결제 완료 · 동네사주카페</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --ink: #1C2333; --gold: #C9A24B; --gold-light: #E8D4A0;
+      --paper: #F7F3E8; --paper-2: #FDFBF5; --text-sub: #6B6252; --line: #E3D9C0;
+    }
+    body { font-family: "Pretendard", "Noto Sans KR", "맑은 고딕", sans-serif; background: var(--paper); color: var(--ink); }
+    main { max-width: 440px; margin: 60px auto; text-align: center; padding: 0 20px; }
+    .icon { font-size: 46px; margin-bottom: 14px; }
+    .title { font-size: 18px; font-weight: 800; margin-bottom: 8px; color: var(--ink); }
+    .desc { color: var(--text-sub); font-size: 13.5px; line-height: 1.7; }
+    .box {
+      background: var(--paper-2); border: 1px solid var(--line); border-radius: 6px; padding: 18px 20px;
+      margin-top: 22px; font-size: 13px; text-align: left; word-break: break-all; border-top: 3px solid var(--gold);
+    }
+    .status-line { display: flex; align-items: center; gap: 8px; margin-top: 16px; font-size: 13px; justify-content: center; }
+    .spinner-sm {
+      width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--gold);
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    a.btn {
+      display: inline-block; margin-top: 20px; padding: 12px 24px; background: var(--ink);
+      color: var(--gold-light); text-decoration: none; border-radius: 5px; font-weight: 700; font-size: 13.5px;
+    }
+    .wait-box {
+      margin-top: 18px; background: #FBF4E2; border: 1px solid var(--gold-light); border-radius: 5px;
+      padding: 14px 16px; font-size: 12.5px; color: var(--ink); text-align: left; line-height: 1.7;
+    }
+  </style>
+</head>
+<body>
+<main>
+  <div class="icon" id="icon">⏳</div>
+  <div class="title" id="title">결제를 확인하고 있습니다...</div>
+  <div class="desc" id="desc">잠시만 기다려 주세요.</div>
+  <div class="box" id="box" style="display:none;"></div>
+  <div class="wait-box" id="waitBox" style="display:none;"></div>
+  <a class="btn" id="myPageLink" href="/my.html" style="display:none;">마이페이지에서 확인하기</a>
+</main>
+
+<script>
+  (async function () {
+    const params = new URLSearchParams(window.location.search);
+    const paymentKey = params.get("paymentKey");
+    const orderId = params.get("orderId");
+    const amount = params.get("amount");
+
+    const iconEl = document.getElementById("icon");
+    const titleEl = document.getElementById("title");
+    const descEl = document.getElementById("desc");
+    const boxEl = document.getElementById("box");
+    const waitBox = document.getElementById("waitBox");
+    const myPageLink = document.getElementById("myPageLink");
+
+    if (!paymentKey || !orderId || !amount) {
+      iconEl.textContent = "❌";
+      titleEl.textContent = "결제 정보가 올바르지 않습니다.";
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/toss/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentKey, orderId, amount: Number(amount) }),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        iconEl.textContent = "✅";
+        titleEl.textContent = "결제가 완료되었습니다!";
+        descEl.textContent = "신청하신 내용을 확인한 뒤, 입력하신 연락처로 결과지를 직접 전달해드려요.";
+        boxEl.style.display = "block";
+        boxEl.innerHTML =
+          `주문번호: ${data.order.orderId}<br>` +
+          `상품명: ${data.order.orderName}<br>` +
+          `결제금액: ${data.order.amount.toLocaleString()}원<br>` +
+          `받으실 연락처: ${data.order.customerEmail}`;
+
+        waitBox.style.display = "block";
+        waitBox.innerHTML = `⏳ 사장님이 확인 후 최대 2시간 이내에 결과지를 전달해드립니다.<br>진행 상황은 마이페이지에서 확인하실 수 있어요.`;
+        myPageLink.style.display = "inline-block";
+      } else {
+        iconEl.textContent = "❌";
+        titleEl.textContent = "결제 승인에 실패했습니다.";
+        descEl.textContent = data.message || "";
+      }
+    } catch (err) {
+      iconEl.textContent = "❌";
+      titleEl.textContent = "결제 확인 중 오류가 발생했습니다.";
+      descEl.textContent = err.message;
+    }
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "user_1Qk7BpAARzyT": {
+    "userId": "user_1Qk7BpAARzyT",
+    "email": "rlawowls2026@naver.com",
+    "passwordSalt": "b54281baade5f5f380b9680c027a7f8a",
+    "passwordHash": "4b0ef62ebac9f8df9e5f56757a9681a6c71ef7e6a72def0e8decd2e6abb2635ecf3fe653b579a2420c02ed01a78f786b650a698af3e63aa888ed4490eb0d76b5",
+    "name": "김재진",
+    "phone": "01089203237",
+    "role": "customer",
+    "provider": "email",
+    "createdAt": "2026-07-25T10:29:59.484Z"
+  }
+}

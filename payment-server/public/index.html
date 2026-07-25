@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>동네사주카페 · 정통 명리학 사주풀이</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --ink: #1C2333;
+    --ink-2: #2A3350;
+    --gold: #C9A24B;
+    --gold-light: #E8D4A0;
+    --paper: #F7F3E8;
+    --paper-2: #FDFBF5;
+    --text-sub: #6B6252;
+    --line: #E3D9C0;
+  }
+  html, body { height: 100%; }
+  body {
+    font-family: "Pretendard", "Noto Serif KR", "Noto Sans KR", "맑은 고딕", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.6;
+  }
+  body {
+    background-image:
+      radial-gradient(circle at 8% 12%, rgba(201,162,75,0.06) 0%, transparent 40%),
+      radial-gradient(circle at 92% 85%, rgba(201,162,75,0.07) 0%, transparent 45%);
+  }
+
+  header {
+    background: var(--ink);
+    color: var(--gold-light);
+    padding: 16px 20px;
+    border-bottom: 3px solid var(--gold);
+    display: flex; align-items: center; justify-content: space-between;
+    max-width: 100%;
+  }
+  header .logo {
+    font-size: 18px; font-weight: 800; letter-spacing: 1px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  header .logo .glyph {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; border: 1.5px solid var(--gold);
+    border-radius: 50%; font-size: 13px; color: var(--gold);
+  }
+  header .nav-right { display: flex; align-items: center; gap: 14px; font-size: 12.5px; }
+  header .nav-right a { color: var(--gold-light); text-decoration: none; }
+  header .nav-right a:hover { color: var(--gold); }
+  header .nav-right .user-name { color: var(--gold); font-weight: 700; }
+  header .nav-right .admin-link { font-size: 11px; color: var(--text-sub); border: 1px solid var(--line);
+    padding: 3px 9px; border-radius: 6px; }
+  header .nav-right .admin-link:hover { color: var(--gold); border-color: var(--gold); }
+  .tagline-row {
+    text-align: center; background: var(--ink); color: var(--gold-light);
+    font-size: 11px; opacity: 0.75; letter-spacing: 1.5px; padding-bottom: 12px;
+  }
+
+  .hero {
+    text-align: center;
+    padding: 40px 20px 32px;
+    background: linear-gradient(180deg, var(--ink) 0%, var(--ink) 60%, var(--paper) 100%);
+    color: var(--paper-2);
+  }
+  .hero .taegeuk {
+    width: 46px; height: 46px; margin: 0 auto 14px;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg, var(--gold) 0deg 180deg, var(--paper-2) 180deg 360deg);
+    box-shadow: 0 0 0 1px rgba(201,162,75,0.4);
+    position: relative;
+  }
+  .hero .taegeuk::before, .hero .taegeuk::after {
+    content: ""; position: absolute; width: 50%; height: 50%; border-radius: 50%;
+  }
+  .hero .taegeuk::before { background: var(--gold); top: 0; left: 25%; }
+  .hero .taegeuk::after { background: var(--paper-2); bottom: 0; left: 25%; }
+  .hero h1 { font-size: 23px; font-weight: 800; margin-bottom: 10px; }
+  .hero p { font-size: 13.5px; color: rgba(253,251,245,0.72); max-width: 420px; margin: 0 auto; }
+
+  main { max-width: 720px; margin: -18px auto 0; padding: 0 20px 60px; position: relative; z-index: 2; }
+
+  .card {
+    background: var(--paper-2);
+    border-radius: 6px;
+    padding: 26px 24px;
+    margin-top: 20px;
+    box-shadow: 0 8px 28px rgba(28,35,51,0.10);
+    border: 1px solid var(--line);
+    position: relative;
+  }
+  .card::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: 6px 6px 0 0;
+    background: linear-gradient(90deg, var(--gold), transparent 70%);
+  }
+  .card h2 { font-size: 16px; font-weight: 800; margin-bottom: 6px; }
+
+  .product-list { display: flex; flex-direction: column; gap: 12px; margin-top: 14px; }
+  .product-card {
+    background: var(--paper); border: 1.5px solid var(--line); border-radius: 8px; padding: 18px 20px;
+    cursor: pointer; transition: border-color .15s, transform .1s; text-align: left;
+    display: flex; flex-direction: column; gap: 7px;
+  }
+  .product-card:hover { border-color: var(--gold); transform: translateY(-2px); }
+  .product-card .badge {
+    align-self: flex-start; font-size: 10px; background: var(--gold); color: var(--ink);
+    padding: 2px 8px; border-radius: 3px; font-weight: 800;
+  }
+  .product-card .name { font-size: 15.5px; font-weight: 800; color: var(--ink); }
+  .product-card .desc-small { font-size: 12px; color: var(--text-sub); }
+  .product-card .price { font-size: 18px; font-weight: 800; color: var(--ink); margin-top: 4px; }
+  .product-card .price .unit { font-size: 11.5px; font-weight: 500; color: var(--text-sub); }
+  .product-card .order-btn {
+    margin-top: 8px; width: 100%; padding: 12px; border: none; border-radius: 6px;
+    background: var(--ink); color: var(--gold-light); font-size: 14px; font-weight: 700; cursor: pointer;
+  }
+  .product-card .order-btn:hover { opacity: 0.9; }
+
+  footer { text-align: center; padding: 20px 20px 30px; font-size: 10.5px; color: var(--text-sub); }
+  footer .footer-glyph { color: var(--gold); margin-bottom: 4px; font-size: 12px; }
+
+  /* ---------- 주문 팝업 ---------- */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(28,35,51,0.68);
+    align-items: flex-start; justify-content: center; z-index: 1000; padding: 30px 16px; overflow-y: auto;
+  }
+  .modal-overlay.active { display: flex; }
+  .order-modal-box {
+    background: var(--paper-2); border-radius: 8px; padding: 0; max-width: 480px; width: 100%;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.32); border-top: 3px solid var(--gold);
+    margin-bottom: 30px;
+  }
+  .order-modal-head {
+    padding: 22px 26px 16px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .order-modal-head h3 { font-size: 17px; font-weight: 800; color: var(--ink); }
+  .order-modal-head .close-x { cursor: pointer; font-size: 20px; color: var(--text-sub); line-height: 1; background:none; border:none; }
+  .order-modal-body { padding: 20px 26px 8px; }
+
+  .form-row { margin-bottom: 15px; }
+  .form-row label { display: block; font-size: 12.5px; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
+  .form-row .hint { font-size: 10.5px; color: var(--text-sub); font-weight: 400; margin-left: 4px; }
+  .form-row input[type="text"],
+  .form-row input[type="email"],
+  .form-row input[type="tel"],
+  .form-row select {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 4px;
+    font-size: 13.5px; background: var(--paper); color: var(--ink); font-family: inherit;
+  }
+  .form-row input:focus, .form-row select:focus { outline: none; border-color: var(--gold); }
+  .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .radio-group { display: flex; gap: 14px; align-items: center; height: 38px; }
+  .radio-group label { display: flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 500; margin: 0; cursor: pointer; }
+  .radio-group input { width: 15px; height: 15px; accent-color: var(--ink); }
+
+  .zodiac-display {
+    display: inline-flex; align-items: center; gap: 6px; background: #FBF4E2; border: 1px solid var(--gold-light);
+    border-radius: 4px; padding: 8px 12px; font-size: 13px; font-weight: 700; color: var(--ink); margin-top: 2px;
+  }
+  .zodiac-display .zodiac-empty { color: var(--text-sub); font-weight: 400; }
+
+  .partner-section {
+    display: none; margin-top: 4px; padding-top: 14px; border-top: 1px dashed var(--line);
+  }
+  .partner-section.active { display: block; }
+  .partner-section .section-title { font-size: 13px; font-weight: 800; color: var(--gold); margin-bottom: 10px; }
+
+  .selected-product-banner {
+    background: var(--ink); color: var(--gold-light); border-radius: 4px; padding: 10px 14px;
+    font-size: 13px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;
+  }
+  .selected-product-banner .price { font-weight: 800; }
+
+  .order-modal-foot { padding: 18px 26px 26px; display: flex; gap: 10px; }
+  .modal-btn {
+    flex: 1; padding: 13px; border: none; border-radius: 4px; font-size: 14px;
+    font-weight: 700; cursor: pointer;
+  }
+  .modal-btn-primary { background: var(--ink); color: var(--gold-light); }
+  .modal-btn-secondary { background: var(--paper); color: var(--ink); border: 1px solid var(--line); }
+
+  /* ---------- 완료/오류 모달 ---------- */
+  .simple-modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(28,35,51,0.65);
+    align-items: center; justify-content: center; z-index: 1100; padding: 20px;
+  }
+  .simple-modal-overlay.active { display: flex; }
+  .modal-box {
+    background: var(--paper-2); border-radius: 6px; padding: 38px 28px; max-width: 380px; width: 100%;
+    text-align: center; box-shadow: 0 16px 48px rgba(0,0,0,0.3); border-top: 3px solid var(--gold);
+  }
+  .modal-icon { font-size: 42px; margin-bottom: 16px; }
+  .modal-title { font-size: 17px; font-weight: 800; color: var(--ink); margin-bottom: 8px; }
+  .modal-desc { font-size: 13.5px; color: var(--text-sub); margin-bottom: 22px; }
+
+  .spinner-ring {
+    width: 40px; height: 40px; border: 3px solid var(--line); border-top-color: var(--gold);
+    border-radius: 50%; margin: 0 auto 16px; animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 640px) {
+    .product-list { grid-template-columns: 1fr; }
+    .form-grid-3 { grid-template-columns: 1fr 1fr; }
+    header .nav-right { font-size: 11px; gap: 10px; }
+  }
+
+  @media (max-width: 420px) {
+    header { padding: 12px 14px; }
+    .hero { padding: 26px 16px 20px; }
+    .hero h1 { font-size: 19px; }
+    .hero p { font-size: 12.5px; }
+    main { padding: 0 12px 40px; }
+    .order-modal-head { padding: 18px 16px 12px; }
+    .order-modal-body { padding: 16px 16px 8px; }
+    .form-grid-2, .form-grid-3 { grid-template-columns: 1fr; }
+    .radio-group { height: auto; flex-wrap: wrap; gap: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><span class="glyph">易</span>동네사주카페</div>
+  <div class="nav-right" id="navRight">
+    <a href="/login.html">로그인</a>
+    <a href="/signup.html">회원가입</a>
+    <a href="/admin-login.html" class="admin-link">관리자</a>
+  </div>
+</header>
+<div class="tagline-row">정통 명리학 · 자평진전 · 삼명통회 · 적천수</div>
+
+<div class="hero">
+  <div class="taegeuk"></div>
+  <h1>사주에 새겨진 당신의 이야기</h1>
+  <p>원하는 사주풀이를 선택하고, 정보를 입력해 주시면<br>정통 명리학 이론에 기반한 사주풀이를 준비해드려요.</p>
+</div>
+
+<main>
+  <div class="card">
+    <h2>📜 상품 안내</h2>
+    <div class="product-list">
+      <div class="product-card" style="border:2px solid #C0392B;">
+        <span class="badge" style="background:#C0392B;">무료 이벤트</span>
+        <div class="name">이벤트 사주풀이 (이달의 운세)</div>
+        <div class="desc-small">이번 달 내 운세를 무료로! 회원가입 후 0원으로 신청하면 맛보기 결과지를 보내드려요.</div>
+        <div class="price">0<span class="unit">원</span></div>
+        <button class="order-btn" data-product="이벤트 사주풀이" data-price="0" data-type="single">무료로 신청하기</button>
+      </div>
+      <div class="product-card">
+        <span class="badge">BEST</span>
+        <div class="name">프리미엄 사주풀이</div>
+        <div class="desc-small">사주 원국·오행·십성·대운·세운·신살 정밀 종합 풀이</div>
+        <div class="price">29,800<span class="unit">원</span></div>
+        <button class="order-btn" data-product="프리미엄 사주풀이" data-price="29800" data-type="single">주문하기</button>
+      </div>
+      <div class="product-card">
+        <span class="badge">2인 분석 · 할인</span>
+        <div class="name">궁합사주</div>
+        <div class="desc-small">두 분의 사주를 각각 계산해 상성·궁합을 정밀 비교</div>
+        <div class="price">
+          <span style="text-decoration:line-through;color:#999;font-size:0.62em;font-weight:600;">정가 59,600원</span><br>
+          55,000<span class="unit">원</span>
+          <span style="display:inline-block;margin-left:6px;font-size:0.5em;font-weight:700;color:#c0392b;vertical-align:middle;">4,600원 할인</span>
+        </div>
+        <button class="order-btn" data-product="궁합사주" data-price="55000" data-type="couple">주문하기</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="footer-glyph">☯</div>
+  동네사주카페 · 자평진전·삼명통회·명리정종·적천수 기반 계산 엔진
+</footer>
+
+<!-- ============ 주문 입력 팝업 ============ -->
+<div class="modal-overlay" id="orderModal">
+  <div class="order-modal-box">
+    <div class="order-modal-head">
+      <h3>주문 등록</h3>
+      <button class="close-x" id="orderModalClose">&times;</button>
+    </div>
+    <div class="order-modal-body">
+
+      <div class="selected-product-banner" id="selectedProductBanner"></div>
+
+      <div class="form-row">
+        <label>이름 <span class="hint">한글</span></label>
+        <div class="form-grid-2">
+          <input type="text" id="fName" placeholder="예: 김재진" />
+          <input type="text" id="fNameHanja" placeholder="한자명 (선택)" />
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-grid-2">
+          <div>
+            <label>성별</label>
+            <div class="radio-group">
+              <label><input type="radio" name="gender" value="여성" checked /> 여성</label>
+              <label><input type="radio" name="gender" value="남성" /> 남성</label>
+            </div>
+          </div>
+          <div>
+            <label>혼인 여부</label>
+            <div class="radio-group">
+              <label><input type="radio" name="marital" value="미혼" checked /> 미혼</label>
+              <label><input type="radio" name="marital" value="기혼" /> 기혼</label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label>생년월일</label>
+        <div class="form-grid-3">
+          <input type="text" id="fYear" placeholder="년 (예: 1990)" inputmode="numeric" />
+          <input type="text" id="fMonth" placeholder="월" inputmode="numeric" />
+          <input type="text" id="fDay" placeholder="일" inputmode="numeric" />
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-grid-2">
+          <div>
+            <label>양력 / 음력</label>
+            <select id="fCalType">
+              <option value="양력">양력</option>
+              <option value="음력">음력</option>
+            </select>
+          </div>
+          <div>
+            <label>태어난 시각 <span class="hint">모르면 비워두세요</span></label>
+            <div class="form-grid-2">
+              <input type="text" id="fHour" placeholder="시" inputmode="numeric" />
+              <input type="text" id="fMinute" placeholder="분" inputmode="numeric" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label>띠 <span class="hint">생년월일 입력 시 자동 계산됩니다</span></label>
+        <div class="zodiac-display" id="zodiacDisplay"><span class="zodiac-empty">생년월일을 입력해 주세요</span></div>
+      </div>
+
+      <div class="form-row">
+        <label>연락처</label>
+        <div class="form-grid-2">
+          <input type="email" id="fEmail" placeholder="이메일" />
+          <input type="tel" id="fPhone" placeholder="휴대폰 번호 (선택)" />
+        </div>
+      </div>
+
+      <!-- 궁합사주 전용: 상대방 정보 -->
+      <div class="partner-section" id="partnerSection">
+        <div class="section-title">💕 상대방 정보</div>
+
+        <div class="form-row">
+          <label>이름 <span class="hint">한글</span></label>
+          <div class="form-grid-2">
+            <input type="text" id="pName" placeholder="예: 이수민" />
+            <input type="text" id="pNameHanja" placeholder="한자명 (선택)" />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-grid-2">
+            <div>
+              <label>성별</label>
+              <div class="radio-group">
+                <label><input type="radio" name="pGender" value="여성" /> 여성</label>
+                <label><input type="radio" name="pGender" value="남성" checked /> 남성</label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label>생년월일</label>
+          <div class="form-grid-3">
+            <input type="text" id="pYear" placeholder="년 (예: 1990)" inputmode="numeric" />
+            <input type="text" id="pMonth" placeholder="월" inputmode="numeric" />
+            <input type="text" id="pDay" placeholder="일" inputmode="numeric" />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-grid-2">
+            <div>
+              <label>양력 / 음력</label>
+              <select id="pCalType">
+                <option value="양력">양력</option>
+                <option value="음력">음력</option>
+              </select>
+            </div>
+            <div>
+              <label>태어난 시각 <span class="hint">모르면 비워두세요</span></label>
+              <div class="form-grid-2">
+                <input type="text" id="pHour" placeholder="시" inputmode="numeric" />
+                <input type="text" id="pMinute" placeholder="분" inputmode="numeric" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label>띠 <span class="hint">생년월일 입력 시 자동 계산됩니다</span></label>
+          <div class="zodiac-display" id="partnerZodiacDisplay"><span class="zodiac-empty">생년월일을 입력해 주세요</span></div>
+        </div>
+      </div>
+
+    </div>
+    <div class="order-modal-foot">
+      <button class="modal-btn modal-btn-secondary" id="orderCancelBtn">취소</button>
+      <button class="modal-btn modal-btn-primary" id="orderSubmitBtn">등록하기</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 처리중 모달 ============ -->
+<div class="simple-modal-overlay" id="loadingModal">
+  <div class="modal-box">
+    <div class="spinner-ring"></div>
+    <div class="modal-title">주문을 등록하고 있습니다</div>
+    <div class="modal-desc">잠시만 기다려 주세요.</div>
+  </div>
+</div>
+
+<!-- ============ 등록 완료 -> 결제 이동 모달 ============ -->
+<div class="simple-modal-overlay" id="doneModal">
+  <div class="modal-box">
+    <div class="modal-icon">🔮</div>
+    <div class="modal-title">주문이 등록되었습니다</div>
+    <div class="modal-desc" id="doneDesc">결제를 진행하시면 신청이 접수됩니다.<br>결과지는 확인 후 입력하신 연락처로 전달해드려요.</div>
+    <div style="display:flex; gap:10px;">
+      <button class="modal-btn modal-btn-secondary" id="doneLaterBtn">나중에</button>
+      <button class="modal-btn modal-btn-primary" id="donePayBtn">결제하러 가기</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 오류 모달 ============ -->
+<div class="simple-modal-overlay" id="errorModal">
+  <div class="modal-box">
+    <div class="modal-icon">😥</div>
+    <div class="modal-title">문제가 발생했어요</div>
+    <div class="modal-desc" id="errorDesc"></div>
+    <button class="modal-btn modal-btn-primary" id="errorCloseBtn" style="width:100%;">확인</button>
+  </div>
+</div>
+
+<script>
+  const ZODIAC_TABLE = ["쥐", "소", "호랑이", "토끼", "용", "뱀", "말", "양", "원숭이", "닭", "개", "돼지"];
+  function calcZodiac(year) {
+    const y = Number(year);
+    if (!y || y < 1900 || y > 2100) return null;
+    return ZODIAC_TABLE[(y - 1900) % 12] + "띠";
+  }
+
+  const navRight = document.getElementById("navRight");
+  let loggedInUser = null;
+
+  // ---- 로그인 상태 확인 ----
+  (async function checkLogin() {
+    try {
+      const res = await fetch("/api/auth/me");
+      const data = await res.json();
+      if (data.success) {
+        loggedInUser = data.user;
+        navRight.innerHTML =
+          `<span class="user-name">${data.user.name}님</span>` +
+          `<a href="/my.html">마이페이지</a>` +
+          `<a href="#" id="logoutLink">로그아웃</a>` +
+          `<a href="/admin-login.html" class="admin-link">관리자</a>`;
+        document.getElementById("logoutLink").addEventListener("click", async (e) => {
+          e.preventDefault();
+          await fetch("/api/auth/logout", { method: "POST" });
+          window.location.reload();
+        });
+      }
+    } catch (e) { /* 로그인 안 된 상태 그대로 둠 */ }
+  })();
+
+  const orderModal = document.getElementById("orderModal");
+  const orderModalClose = document.getElementById("orderModalClose");
+  const orderCancelBtn = document.getElementById("orderCancelBtn");
+  const orderSubmitBtn = document.getElementById("orderSubmitBtn");
+  const selectedProductBanner = document.getElementById("selectedProductBanner");
+  const partnerSection = document.getElementById("partnerSection");
+
+  const loadingModal = document.getElementById("loadingModal");
+  const doneModal = document.getElementById("doneModal");
+  const doneDesc = document.getElementById("doneDesc");
+  const doneLaterBtn = document.getElementById("doneLaterBtn");
+  const donePayBtn = document.getElementById("donePayBtn");
+  const errorModal = document.getElementById("errorModal");
+  const errorDesc = document.getElementById("errorDesc");
+  const errorCloseBtn = document.getElementById("errorCloseBtn");
+
+  let selectedProduct = null;
+  let currentOrder = null;
+
+  document.querySelectorAll(".order-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (!loggedInUser) {
+        showError("주문하시려면 먼저 로그인이 필요합니다.");
+        setTimeout(() => { window.location.href = "/login.html"; }, 1200);
+        return;
+      }
+      selectedProduct = {
+        name: btn.dataset.product,
+        price: Number(btn.dataset.price),
+        type: btn.dataset.type,
+      };
+      openOrderModal();
+    });
+  });
+
+  function openOrderModal() {
+    selectedProductBanner.innerHTML =
+      `<span>${selectedProduct.name}</span><span class="price">${selectedProduct.price.toLocaleString()}원</span>`;
+    partnerSection.classList.toggle("active", selectedProduct.type === "couple");
+    if (loggedInUser) {
+      document.getElementById("fName").value = loggedInUser.name || "";
+      document.getElementById("fEmail").value = loggedInUser.email || "";
+      document.getElementById("fPhone").value = loggedInUser.phone || "";
+    }
+    orderModal.classList.add("active");
+  }
+
+  orderModalClose.addEventListener("click", () => orderModal.classList.remove("active"));
+  orderCancelBtn.addEventListener("click", () => orderModal.classList.remove("active"));
+
+  function bindZodiac(yearInputId, displayId) {
+    const yearInput = document.getElementById(yearInputId);
+    const display = document.getElementById(displayId);
+    yearInput.addEventListener("input", () => {
+      const z = calcZodiac(yearInput.value);
+      display.innerHTML = z ? `<span>🐾 ${z}</span>` : `<span class="zodiac-empty">생년월일을 입력해 주세요</span>`;
+    });
+  }
+  bindZodiac("fYear", "zodiacDisplay");
+  bindZodiac("pYear", "partnerZodiacDisplay");
+
+  orderSubmitBtn.addEventListener("click", async () => {
+    const name = document.getElementById("fName").value.trim();
+    const nameHanja = document.getElementById("fNameHanja").value.trim();
+    const gender = document.querySelector('input[name="gender"]:checked').value;
+    const marital = document.querySelector('input[name="marital"]:checked').value;
+    const year = document.getElementById("fYear").value.trim();
+    const month = document.getElementById("fMonth").value.trim();
+    const day = document.getElementById("fDay").value.trim();
+    const calType = document.getElementById("fCalType").value;
+    const hour = document.getElementById("fHour").value.trim();
+    const minute = document.getElementById("fMinute").value.trim();
+    const email = document.getElementById("fEmail").value.trim();
+    const phone = document.getElementById("fPhone").value.trim();
+
+    if (!name || !year || !month || !day || !email) {
+      showError("이름, 생년월일, 이메일은 필수 입력 항목입니다.");
+      return;
+    }
+
+    const payload = {
+      productName: selectedProduct.name,
+      productType: selectedProduct.type,
+      customerName: name,
+      customerNameHanja: nameHanja,
+      customerEmail: email,
+      customerPhone: phone,
+      person1: {
+        name, nameHanja, gender, marital,
+        calendarType: calType,
+        year: Number(year), month: Number(month), day: Number(day),
+        hour: hour ? Number(hour) : null, minute: minute ? Number(minute) : null,
+        zodiac: calcZodiac(year),
+      },
+    };
+
+    if (selectedProduct.type === "couple") {
+      const pName = document.getElementById("pName").value.trim();
+      const pNameHanja = document.getElementById("pNameHanja").value.trim();
+      const pGender = document.querySelector('input[name="pGender"]:checked').value;
+      const pYear = document.getElementById("pYear").value.trim();
+      const pMonth = document.getElementById("pMonth").value.trim();
+      const pDay = document.getElementById("pDay").value.trim();
+      const pCalType = document.getElementById("pCalType").value;
+      const pHour = document.getElementById("pHour").value.trim();
+      const pMinute = document.getElementById("pMinute").value.trim();
+
+      if (!pName || !pYear || !pMonth || !pDay) {
+        showError("궁합사주는 상대방의 이름과 생년월일도 필요합니다.");
+        return;
+      }
+
+      payload.person2 = {
+        name: pName, nameHanja: pNameHanja, gender: pGender,
+        calendarType: pCalType,
+        year: Number(pYear), month: Number(pMonth), day: Number(pDay),
+        hour: pHour ? Number(pHour) : null, minute: pMinute ? Number(pMinute) : null,
+        zodiac: calcZodiac(pYear),
+      };
+    }
+
+    orderModal.classList.remove("active");
+    loadingModal.classList.add("active");
+
+    try {
+      const res = await fetch("/api/orders/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      loadingModal.classList.remove("active");
+
+      if (!data.success) {
+        if (res.status === 401) {
+          showError("로그인이 만료되었습니다. 다시 로그인해 주세요.");
+          setTimeout(() => { window.location.href = "/login.html"; }, 1200);
+          return;
+        }
+        showError(data.message || "주문 등록 중 문제가 발생했습니다.");
+        return;
+      }
+
+      currentOrder = data.order;
+
+      // 이벤트(0원) 상품: PG 결제 없이 바로 무료 신청 처리
+      if (Number(selectedProduct.price) === 0) {
+        try {
+          const fr = await fetch(`/api/orders/${currentOrder.orderId}/free-claim`, { method: "POST" });
+          const fd = await fr.json();
+          if (!fd.success) { showError(fd.message || "무료 신청 처리 중 문제가 발생했습니다."); return; }
+        } catch (e) { showError("무료 신청 처리 중 오류: " + e.message); return; }
+        doneDesc.innerHTML = `${currentOrder.customerName}님, 무료 이벤트 신청이 접수되었어요! 🎉<br>확인 후 '이달의 운세' 맛보기 결과지를 입력하신 연락처로 보내드릴게요.`;
+        if (typeof donePayBtn !== "undefined" && donePayBtn) donePayBtn.style.display = "none";
+        if (typeof doneLaterBtn !== "undefined" && doneLaterBtn) doneLaterBtn.textContent = "확인";
+        doneModal.classList.add("active");
+        return;
+      }
+
+      doneDesc.innerHTML = `${currentOrder.customerName}님, 결제를 진행하시면 신청이 접수됩니다.<br>결과지는 확인 후 입력하신 연락처로 전달해드려요.`;
+      doneModal.classList.add("active");
+    } catch (err) {
+      loadingModal.classList.remove("active");
+      showError("서버와 통신 중 오류가 발생했습니다: " + err.message);
+    }
+  });
+
+  doneLaterBtn.addEventListener("click", () => {
+    doneModal.classList.remove("active");
+    window.location.href = "/my.html";
+  });
+  donePayBtn.addEventListener("click", () => {
+    if (!currentOrder) return;
+    window.location.href = `/select-payment.html?orderId=${encodeURIComponent(currentOrder.orderId)}`;
+  });
+
+  errorCloseBtn.addEventListener("click", () => errorModal.classList.remove("active"));
+  function showError(msg) {
+    errorDesc.textContent = msg;
+    errorModal.classList.add("active");
+  }
+</script>
+</body>
+</html>

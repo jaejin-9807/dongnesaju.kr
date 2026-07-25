@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>결제수단 선택 · 동네사주카페</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --ink: #1C2333; --gold: #C9A24B; --gold-light: #E8D4A0;
+    --paper: #F7F3E8; --paper-2: #FDFBF5; --text-sub: #6B6252; --line: #E3D9C0;
+  }
+  body {
+    font-family: "Pretendard", "Noto Sans KR", "맑은 고딕", sans-serif;
+    background: var(--paper); color: var(--ink); min-height: 100vh;
+  }
+  header {
+    background: var(--ink); color: var(--gold-light); padding: 18px 20px;
+    text-align: center; font-weight: 800; font-size: 16px; border-bottom: 3px solid var(--gold);
+  }
+  main { max-width: 480px; margin: 0 auto; padding: 26px 20px 60px; }
+
+  .back-link {
+    display: inline-block; margin-bottom: 16px; font-size: 12.5px; color: var(--text-sub);
+    text-decoration: none; font-weight: 700;
+  }
+  .back-link:hover { color: var(--ink); }
+  .order-summary {
+    background: var(--paper-2); border: 1px solid var(--line); border-radius: 6px; padding: 18px 20px;
+    margin-bottom: 20px; font-size: 13.5px; border-top: 3px solid var(--gold);
+  }
+  .order-summary .name { font-weight: 800; font-size: 15.5px; color: var(--ink); margin-bottom: 6px; }
+  .order-summary .amount { font-weight: 800; color: var(--ink); font-size: 18px; margin-top: 8px; }
+
+  .field { margin-bottom: 16px; }
+  label.field-label { display: block; font-size: 12.5px; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
+  input {
+    width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: 5px;
+    font-size: 13.5px; background: var(--paper-2); font-family: inherit;
+  }
+  input:focus { outline: none; border-color: var(--gold); }
+
+  .pg-select { display: grid; gap: 10px; margin: 18px 0 24px; }
+  .pg-option {
+    display: flex; align-items: center; gap: 12px; border: 1.5px solid var(--line); border-radius: 5px;
+    padding: 14px 16px; cursor: pointer; font-size: 14px; font-weight: 700; background: var(--paper-2); color: var(--ink);
+  }
+  .pg-option.selected { border-color: var(--gold); background: #FBF4E2; }
+  .pg-option input { width: auto; margin: 0; accent-color: var(--ink); }
+
+  .submit-btn {
+    width: 100%; padding: 14px; border: none; border-radius: 5px;
+    background: var(--ink); color: var(--gold-light); font-size: 15px; font-weight: 700; cursor: pointer;
+  }
+  .submit-btn:hover { opacity: 0.9; }
+  .submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+</style>
+</head>
+<body>
+<header>易 동네사주카페 결제</header>
+<main>
+  <a href="/my.html" class="back-link">&larr; 마이페이지로 돌아가기 (상품/생년월일 다시 확인)</a>
+  <div class="order-summary" id="orderSummary">주문 정보를 불러오는 중...</div>
+
+  <div class="field">
+    <label class="field-label">휴대폰 번호 (선택)</label>
+    <input type="tel" id="customerPhone" placeholder="010-1234-5678" />
+  </div>
+
+  <label class="field-label" style="margin-bottom:8px;">결제 수단 선택</label>
+  <div class="pg-select">
+    <label class="pg-option" data-pg="toss"><input type="radio" name="pg" value="toss" checked /> 토스페이먼츠</label>
+    <label class="pg-option" data-pg="kakaopay"><input type="radio" name="pg" value="kakaopay" /> 카카오페이</label>
+    <label class="pg-option" data-pg="naverpay"><input type="radio" name="pg" value="naverpay" /> 네이버페이</label>
+  </div>
+
+  <button class="submit-btn" id="submitBtn" disabled>결제하고 바로 받아보기</button>
+</main>
+
+<script>
+  const params = new URLSearchParams(window.location.search);
+  const orderId = params.get("orderId");
+  const summaryEl = document.getElementById("orderSummary");
+  const submitBtn = document.getElementById("submitBtn");
+  const pgOptions = document.querySelectorAll(".pg-option");
+
+  if (!orderId) {
+    summaryEl.textContent = "주문 정보가 없습니다. 처음부터 다시 진행해 주세요.";
+  } else {
+    loadOrder();
+  }
+
+  async function loadOrder() {
+    const res = await fetch(`/api/orders/${orderId}`);
+    const data = await res.json();
+    if (!data.success) {
+      summaryEl.textContent = "주문 정보를 찾을 수 없습니다.";
+      return;
+    }
+    const order = data.order;
+    const discountHtml = order.productType === "couple"
+      ? `<div style="font-size:13px;color:#999;text-decoration:line-through;">정가 59,600원</div>`
+        + `<div style="font-size:12px;color:#c0392b;font-weight:700;">4,600원 할인 적용</div>`
+      : "";
+    summaryEl.innerHTML =
+      `<div class="name">${order.orderName}</div>` +
+      `<div>주문자: ${order.customerName} (${order.customerEmail})</div>` +
+      discountHtml +
+      `<div class="amount">${order.amount.toLocaleString()}원</div>`;
+    submitBtn.disabled = false;
+  }
+
+  function updatePgSelection() {
+    pgOptions.forEach((opt) => opt.classList.toggle("selected", opt.querySelector("input").checked));
+  }
+  pgOptions.forEach((opt) => opt.addEventListener("click", () => {
+    opt.querySelector("input").checked = true;
+    updatePgSelection();
+  }));
+  updatePgSelection();
+
+  submitBtn.addEventListener("click", async () => {
+    const pg = document.querySelector('input[name="pg"]:checked').value;
+    const customerPhone = document.getElementById("customerPhone").value.trim();
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = "결제창 준비 중...";
+
+    try {
+      await fetch(`/api/orders/${orderId}/select-pg`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pg, customerPhone }),
+      });
+
+      const pageMap = {
+        toss: `/payment-toss.html?orderId=${orderId}`,
+        kakaopay: `/payment-kakaopay.html?orderId=${orderId}`,
+        naverpay: `/payment-naverpay.html?orderId=${orderId}`,
+      };
+      window.location.href = pageMap[pg];
+    } catch (err) {
+      alert("오류가 발생했습니다: " + err.message);
+      submitBtn.disabled = false;
+      submitBtn.textContent = "결제하고 바로 받아보기";
+    }
+  });
+</script>
+</body>
+</html>

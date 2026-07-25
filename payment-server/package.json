@@ -1,0 +1,21 @@
+{
+  "name": "saju-payment-server",
+  "version": "1.0.0",
+  "description": "사주팔자 주문서 결제 서버 - 토스페이먼츠 / 카카오페이 / 네이버페이 단건결제 연동",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "start:win": "chcp 65001 >nul & node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "multer": "^2.2.0",
+    "nanoid": "^3.3.7",
+    "node-fetch": "^2.7.0",
+    "nodemailer": "^9.0.3",
+    "xlsx": "^0.18.5"
+  }
+}

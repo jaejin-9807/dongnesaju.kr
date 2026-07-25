@@ -1,0 +1,3 @@
+payment-server/.env
+payment-server/.env.example
+/payment-server/node_modules
