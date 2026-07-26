@@ -13,6 +13,7 @@
 const express = require("express");
 const userStore = require("../userStore");
 const session = require("../session");
+const kakaoNotify = require("../kakaoNotify");
 
 const router = express.Router();
 const COOKIE_NAME = "saju_session";
@@ -29,6 +30,10 @@ router.post("/signup", (req, res) => {
     const user = userStore.createUser({ email, password, name, phone, role: "customer" });
     const token = session.sign({ userId: user.userId, role: user.role });
     session.setCookie(res, COOKIE_NAME, token);
+    // 사장님에게 카카오톡 알림(새 회원가입) — 설정돼 있을 때만 전송
+    kakaoNotify.notify(
+      `🙋 [동네사주카페] 새 회원가입\n· 이름: ${name}\n· 이메일: ${email}\n· 연락처: ${phone || "-"}`
+    );
     res.json({ success: true, user });
   } catch (e) {
     res.status(400).json({ success: false, message: e.message });

@@ -95,15 +95,20 @@ async function sendOwnerNotification(order) {
 }
 
 /**
- * 카카오톡(비즈메시지) 알림 자리 (미구현 - 발신프로필/템플릿 승인 후 연동)
+ * 카카오톡 "나에게 보내기"로 사장님에게 결제/주문 알림 전송.
+ * kakaoNotify.js 가 설정돼 있으면 실제 발송, 아니면 조용히 건너뜀.
  */
+const kakaoNotify = require("./kakaoNotify");
 async function sendOwnerKakaoAlert(order) {
-  console.log(
-    `[카카오톡 미연동] "${order.customerName}님 결제완료" 알림을 카카오톡으로 보내려고 했으나, ` +
-    `카카오 비즈메시지 연동이 아직 설정되지 않아 건너뜁니다. ` +
-    `(.env에 KAKAO_BIZ_* 값 추가 후 이 함수에 실제 발송 API 호출을 구현하세요)`
-  );
-  return null;
+  const amount = Number(order.amount) === 0 ? "0원(무료 이벤트)" : `${Number(order.amount).toLocaleString()}원`;
+  const text =
+    `🔔 [동네사주카페] 새 주문/결제\n` +
+    `· 상품: ${order.orderName}\n` +
+    `· 의뢰인: ${order.customerName}\n` +
+    `· 금액: ${amount}\n` +
+    `· 연락처: ${order.customerPhone || "-"}\n` +
+    `· 주문번호: ${order.orderId}`;
+  return kakaoNotify.notify(text);
 }
 
 /**

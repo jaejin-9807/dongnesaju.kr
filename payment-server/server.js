@@ -23,6 +23,7 @@ const orderStore = require("./orderStore");
 const { calculateSaju, generatePdf, probeRenderEngines } = require("./sajuEngine");
 const { fulfillOrder, PDF_OUTPUT_DIR } = require("./fulfillOrder");
 const { sendResultToCustomer, sendResultSmsToCustomer } = require("./mailer");
+const kakaoNotify = require("./kakaoNotify");
 
 const { requireCustomer } = authRoutes;
 const { requireAdmin } = adminAuthRoutes;
@@ -227,6 +228,15 @@ app.post("/api/orders/register", requireCustomer, async (req, res) => {
       sajuResult2,
       status: "PENDING_PAYMENT",
     });
+
+    // 사장님에게 카카오톡 알림(새 주문 접수) — 설정돼 있을 때만 전송
+    kakaoNotify.notify(
+      `🧾 [동네사주카페] 새 주문 접수\n` +
+      `· 상품: ${order.orderName}\n` +
+      `· 의뢰인: ${order.customerName}\n` +
+      `· 금액: ${Number(order.amount) === 0 ? "0원(무료 이벤트)" : Number(order.amount).toLocaleString() + "원"}\n` +
+      `· 주문번호: ${order.orderId}`
+    );
 
     res.json({ success: true, order });
   } catch (e) {
@@ -508,6 +518,41 @@ app.get("/api/admin/render-health", requireAdmin, async (req, res) => {
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });
   }
+});
+
+// ---------------------------------------------------------------
+// 카카오톡 "나에게 보내기" 알림 연결 (사장님 1회 인증)
+//   1) 관리자 로그인 상태에서 /api/admin/kakao/connect 접속 → 카카오 동의
+//   2) 카카오가 /api/admin/kakao/callback 으로 돌려보냄 → refresh_token 저장
+// ---------------------------------------------------------------
+app.get("/api/admin/kakao/connect", requireAdmin, (req, res) => {
+  if (!kakaoNotify.hasRestKey()) {
+    return res.status(400).send("<meta charset='utf-8'>먼저 환경변수 KAKAO_REST_KEY 를 설정하세요.");
+  }
+  res.redirect(kakaoNotify.authorizeUrl());
+});
+
+app.get("/api/admin/kakao/callback", async (req, res) => {
+  const code = req.query.code;
+  if (!code) return res.status(400).send("<meta charset='utf-8'>인가 코드가 없습니다. 다시 시도하세요.");
+  const r = await kakaoNotify.exchangeCode(code);
+  if (r.ok) {
+    kakaoNotify.notify("✅ 동네사주카페 카카오 알림이 연결되었습니다!\n이제 새 주문·회원가입 때 여기로 알림을 보내드려요.");
+    return res.send("<meta charset='utf-8'><div style='font-family:sans-serif;padding:40px;text-align:center;line-height:1.8'>" +
+      "<h2>카카오 알림 연결 완료 ✅</h2><p>이제 새 주문·회원가입 시 카카오톡으로 알림을 받습니다.<br>" +
+      "카카오톡에 테스트 메시지가 도착했는지 확인해 보세요.</p><a href='/admin.html'>관리자 페이지로</a></div>");
+  }
+  res.status(400).send("<meta charset='utf-8'><div style='font-family:sans-serif;padding:40px;'>연결 실패: " +
+    JSON.stringify(r.error) + "</div>");
+});
+
+app.get("/api/admin/kakao/status", requireAdmin, (req, res) => {
+  res.json({
+    success: true,
+    hasRestKey: kakaoNotify.hasRestKey(),
+    connected: kakaoNotify.isConnected(),
+    redirectUri: kakaoNotify.REDIRECT_URI,
+  });
 });
 
 app.locals.fulfillOrder = fulfillOrder;
