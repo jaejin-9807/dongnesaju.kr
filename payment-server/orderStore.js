@@ -13,7 +13,9 @@
 const fs = require("fs");
 const path = require("path");
 
-const DB_PATH = path.join(__dirname, "orders.json");
+const DATA_DIR = process.env.DATA_DIR || __dirname;
+try { require("fs").mkdirSync(DATA_DIR, { recursive: true }); } catch (e) {}
+const DB_PATH = path.join(DATA_DIR, "orders.json");
 
 function readAll() {
   if (!fs.existsSync(DB_PATH)) return {};
@@ -75,4 +77,13 @@ function listOrders() {
   return Object.values(all).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
 
-module.exports = { createOrder, getOrder, updateOrder, listOrders };
+// 관리자: 주문 이력 삭제
+function deleteOrder(orderId) {
+  const all = readAll();
+  if (!all[orderId]) return false;
+  delete all[orderId];
+  writeAll(all);
+  return true;
+}
+
+module.exports = { createOrder, getOrder, updateOrder, listOrders, deleteOrder };

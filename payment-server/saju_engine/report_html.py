@@ -711,62 +711,108 @@ def build_teaser_html(data: dict, chart_paths: dict, meta: dict) -> str:
     </div>
     '''
 
-    # 이달의 흐름운 / 성격
-    seong = _excerpt(txt("p1_성격", txt("타고난성향", txt("십성해설"))), 2)
-    month_flow = _excerpt(txt(f"{wm['month']}월운세", wm.get("keyword", "")), 2) if wm else ""
+    # ---- 텍스트 준비(무료라도 알차게, 문장 3개 내외) ----
+    seong = _excerpt(txt("p1_성격", txt("타고난성향", txt("십성해설"))), 3)
+    seong2 = _excerpt(txt("타고난성향", txt("십성해설", "")), 2)
+    month_flow = _excerpt(txt(f"{wm['month']}월운세", wm.get("keyword", "")), 3) if wm else ""
+    ilgan = data.get("ilgan", "")
+    gyeok = plain(gyeokguk.get("name", ""))
 
-    oheng_block = (
-        f"<div class='card'>다섯 기운(목·화·토·금·수) 중 <b>{esc(most_oheng or '-')}</b> 기운이 가장 강하고, "
-        f"<b>{esc(miss_str)}</b> 기운이 부족합니다. 강한 기운은 타고난 장점으로 살리고, 부족한 기운은 이번 달 생활 속에서 채우면 좋아요.</div>")
+    # ---- 오행 분포 표(도표) ----
+    od = data.get("ohengDistribution", {}) or {}
+    _order = ["목", "화", "토", "금", "수"]
+    oheng_table = (
+        "<div class='card'><table style='width:100%;text-align:center;'>"
+        "<tr><th>오행</th>" + "".join(f"<th>{k}</th>" for k in _order) + "</tr>"
+        "<tr><td>기운의 개수</td>" + "".join(f"<td><b>{esc(str(od.get(k, 0)))}</b></td>" for k in _order) + "</tr>"
+        "</table></div>")
+
+    def chart_img(key, width, cap=""):
+        if not chart_paths.get(key):
+            return ""
+        c = f"<div class='chart-cap'>{esc(cap)}</div>" if cap else ""
+        return f"<div class='chart-wrap'><img src='{chart_paths[key]}' style='width:{width}'/>{c}</div>"
 
     lock = TOKENS['ink_soft']
-    def locked(icon, title, teaser):
+    def locked(title, teaser):
         return (f"<div class='card' style='border:1px dashed {TOKENS['gold_soft']};background:#FAF4E8;'>"
                 f"<b style='color:{TOKENS['seal']}'>{esc(title)}</b> "
-                f"<span style='color:{lock};font-size:12.5pt;'>&nbsp;프리미엄 전용</span><br>"
+                f"<span style='color:{lock};font-size:12.5pt;'>&nbsp;프리미엄 전용 🔒</span><br>"
                 f"<span style='color:{lock};font-size:13pt;'>{esc(teaser)}</span></div>")
 
-    content = f'''
-    <div class="chapter" style="margin-top:0;font-size:12pt;">
-      <div class="chapter-head"><div class="chapter-num">무료 사주 리포트</div>
-      <div class="chapter-title" style="font-size:20pt;">{esc(customer_name)} 님의 {report_year}년 {this_month}월 운세</div>
-      <div class="chapter-sub">회원님께 드리는 이번 달 나의 흐름과 조심할 점입니다.</div></div>
+    # ===================== 1페이지: 사주 원국 + 오행 =====================
+    page1 = f'''
+    <div class="chapter" style="margin-top:0;">
+      <div class="chapter-head"><div class="chapter-num">무료 사주 리포트 · 1</div>
+      <div class="chapter-title" style="font-size:21pt;">{esc(customer_name)} 님의 {report_year}년 {this_month}월 운세</div>
+      <div class="chapter-sub">이번 달 나의 흐름과 조심할 점을 정통 명리학으로 풀어드립니다.</div></div>
 
-      <div class="section-title" style="font-size:15pt;">내 사주와 오행(다섯 기운)</div>
+      <div class="section-title">1. 나의 사주 명식(원국)</div>
       <div class="pillars-card card"><table>
         <tr><th>구분</th><th>시주</th><th>일주</th><th>월주</th><th>연주</th></tr>
         <tr><td>천간</td><td class="han">{esc(pillars.get('시주',['',''])[0])}</td><td class="han">{esc(pillars.get('일주',['',''])[0])}</td><td class="han">{esc(pillars.get('월주',['',''])[0])}</td><td class="han">{esc(pillars.get('연주',['',''])[0])}</td></tr>
         <tr><td>지지</td><td class="han">{esc(pillars.get('시주',['',''])[1])}</td><td class="han">{esc(pillars.get('일주',['',''])[1])}</td><td class="han">{esc(pillars.get('월주',['',''])[1])}</td><td class="han">{esc(pillars.get('연주',['',''])[1])}</td></tr>
       </table></div>
-      <p class="body-text" style="font-size:13.5pt;">나를 상징하는 글자(일간)는 <b>{esc(data.get('ilgan',''))}</b>, 성향의 큰 틀은 <b>{esc(plain(gyeokguk.get('name','')))}</b> 입니다.</p>
-      {oheng_block}
+      <p class="body-text">태어난 날의 기운으로 나를 상징하는 글자(일간)는 <b>{esc(ilgan)}</b> 이고, 타고난 성향의 큰 틀(격국)은 <b>{esc(gyeok)}</b> 입니다. 이 두 가지가 나의 기본 성격과 인생의 결을 만드는 뿌리예요. 사주 명식은 태어난 연·월·일·시의 기운을 여덟 글자로 나타낸 것으로, 아래 다섯 기운(오행) 분포와 함께 보면 나의 강점과 약점이 또렷하게 드러납니다.</p>
 
-      <div class="section-title" style="font-size:15pt;">나의 성격과 기질</div>
-      <p class="body-text" style="font-size:13.5pt;">{esc(seong)}</p>
+      <div class="section-title">2. 나의 다섯 기운(오행) 분포</div>
+      {oheng_table}
+      {chart_img('oheng_bar', '92%', '오행별 기운의 많고 적음')}
+      <p class="body-text">다섯 기운(목·화·토·금·수) 가운데 <b>{esc(most_oheng or '-')}</b> 기운이 가장 강하고, <b>{esc(miss_str)}</b> 기운은 부족한 편입니다. 강한 기운은 타고난 장점이니 그대로 살리되 지나치지 않게 조절하고, 부족한 기운은 이번 달 생활 속 습관(자주 쓰는 색·다니는 방향·만나는 사람·활동)으로 조금씩 채워주면 운의 균형이 좋아져요.</p>
+    </div>
+    '''
 
-      <div class="section-title" style="font-size:15pt;">{this_month}월, 나의 흐름운</div>
-      <p class="body-text" style="font-size:13.5pt;">{esc(month_flow)}</p>
+    # ===================== 2페이지: 성격 · 십성 =====================
+    page2 = f'''
+    <div class="chapter newpage">
+      <div class="chapter-head"><div class="chapter-num">무료 사주 리포트 · 2</div>
+      <div class="chapter-title" style="font-size:21pt;">나의 성격과 타고난 기질</div>
+      <div class="chapter-sub">사주에 새겨진 나의 본래 성향과 강점입니다.</div></div>
 
-      <div class="section-title" style="font-size:15pt;">이번 달 조심해야 할 것들</div>
-      <div class="callout"><div class="callout-label">조심하면 좋은 시기</div>
-        <div style="font-size:13.5pt;">올해 <b>{esc(cau)}</b> 은(는) 나와 잘 맞지 않는 <b>{esc(bad_str)}</b> 기운이 강해지는 때예요. 큰 결정·계약·무리한 지출은 한 번 더 신중히 하고, 건강을 특히 챙기세요. 반대로 <b>{esc(opp)}</b> 에는 기운이 오르니 중요한 일은 이 시기에 맞추면 좋아요.</div></div>
+      <div class="section-title">3. 나의 성격과 기질</div>
+      <p class="body-text">{esc(seong) or '겉으로 보이는 모습과 속마음이 조금 다른, 자기 색이 분명한 사람입니다. 한번 마음먹으면 끝까지 밀고 나가는 힘이 있고, 사람 사이의 분위기를 잘 읽는 편이에요.'}</p>
+      {('<p class="body-text">' + esc(seong2) + '</p>') if seong2 else ''}
 
-      <div class="section-title" style="font-size:15pt;">더 깊은 내 운세 (프리미엄에서 확인)</div>
-      {locked("💰", "재물운", "올해 돈이 들어오는 시기와 지켜야 할 지출, 재물을 키우는 방법까지 — 프리미엄 사주풀이에서 자세히 풀어드려요.")}
-      {locked("💕", "연애·결혼운", "나의 연애 성향과 잘 맞는 상대, 인연이 강해지는 시기 — 프리미엄에서만 확인할 수 있어요.")}
-      {locked("💼", "직업·성공운", "나에게 맞는 일과 성공의 방향, 이직·승진에 유리한 시기 — 프리미엄에서 만나보세요.")}
+      <div class="section-title">4. 십성으로 본 나의 강점</div>
+      {chart_img('sipseong', '100%', '십성 분포 — 관계·재물·명예·학문 등 삶의 에너지가 어디에 쏠리는지')}
+      <p class="body-text">십성은 나를 둘러싼 사람·일·재물·명예와의 관계를 나타내는 열 가지 기운입니다. 위 분포에서 크게 나타나는 기운이 바로 내가 자연스럽게 힘을 쓰는 영역이에요. 강한 부분은 자신감을 갖고 밀어붙이고, 약한 부분은 사람의 도움을 받거나 준비를 조금 더 하면 좋은 결과로 이어집니다.</p>
 
-      <div class="callout" style="border-left-color:{TOKENS['seal']};background:#FBEEE6;margin-top:5mm;text-align:center;">
-        <div class="callout-label" style="color:{TOKENS['seal']};font-size:15pt;">지금 내 인생 전체가 궁금하다면?</div>
-        <div class="body-text" style="font-size:13.5pt;margin-top:1mm;">
-          이 무료 리포트는 <b>이번 달</b> 이야기만 담았어요. <b>프리미엄 사주풀이</b>에서는 재물·연애·직업·건강·귀인과 <b>인생의 황금기</b>, 앞으로 <b>10년의 큰 흐름</b>까지 약 60페이지로 전부 풀어드립니다.
-        </div>
-        <div class="body-text" style="font-size:14pt;margin-top:2mm;font-weight:700;color:{TOKENS['seal']};">
-          ▶ 내 인생의 진짜 흐름, 프리미엄 사주풀이로 확인하세요.
-        </div>
+      <div class="callout">
+        <div class="callout-label">나를 한 문장으로</div>
+        <div style="font-size:14pt;">일간 <b>{esc(ilgan)}</b> · 격국 <b>{esc(gyeok)}</b> — 강한 <b>{esc(most_oheng or '-')}</b> 기운을 중심으로, 자기 색이 분명하고 뚝심 있는 사람입니다.</div>
       </div>
     </div>
     '''
+
+    # ============= 3페이지: 이달 흐름 + 조심할 것 + 프리미엄 유도 =============
+    page3 = f'''
+    <div class="chapter newpage">
+      <div class="chapter-head"><div class="chapter-num">무료 사주 리포트 · 3</div>
+      <div class="chapter-title" style="font-size:21pt;">{report_year}년 {this_month}월, 나의 흐름운</div>
+      <div class="chapter-sub">이번 달 기운의 흐름과 꼭 조심할 점입니다.</div></div>
+
+      <div class="section-title">5. {this_month}월, 나의 흐름운</div>
+      <p class="body-text">{esc(month_flow) or '이번 달은 나의 리듬을 지키며 무리하지 않는 것이 좋은 시기입니다. 익숙한 일에서 안정감을 찾고, 새로운 도전은 컨디션이 오르는 시기에 맞추면 한결 수월합니다.'}</p>
+      {chart_img('monthly_bars', '100%', f'{report_year}년 월별 운세 흐름 — 막대가 높을수록 기운이 오르는 달')}
+
+      <div class="section-title">6. 이번 달 조심해야 할 것</div>
+      <div class="callout"><div class="callout-label">조심하면 좋은 시기</div>
+        <div style="font-size:14pt;"><b>{esc(cau)}</b> 은(는) 나와 잘 맞지 않는 <b>{esc(bad_str)}</b> 기운이 강해지는 때예요. 큰 결정·계약·무리한 지출은 한 번 더 신중히 하고, 건강과 감정 관리에 특히 신경 쓰세요. 반대로 <b>{esc(opp)}</b> 에는 기운이 올라가니, 중요한 일은 이 시기에 맞추면 훨씬 수월합니다.</div></div>
+
+      <div class="section-title">7. 더 깊은 내 운세 (프리미엄에서 확인)</div>
+      {locked("💰 재물운", "올해 돈이 들어오는 시기와 지켜야 할 지출, 재물을 키우는 방법까지 — 프리미엄 사주풀이에서 자세히 풀어드려요.")}
+      {locked("💕 연애·결혼운", "나의 연애 성향과 잘 맞는 상대, 인연이 강해지는 시기 — 프리미엄에서만 확인할 수 있어요.")}
+      {locked("💼 직업·성공운", "나에게 맞는 일과 성공의 방향, 이직·승진에 유리한 시기 — 프리미엄에서 만나보세요.")}
+
+      <div class="callout" style="border-left-color:{TOKENS['seal']};background:#FBEEE6;margin-top:5mm;text-align:center;">
+        <div class="callout-label" style="color:{TOKENS['seal']};font-size:15.5pt;">지금 내 인생 전체가 궁금하다면?</div>
+        <div class="body-text" style="margin-top:1mm;">이 무료 리포트는 <b>이번 달</b> 이야기만 담았어요. <b>프리미엄 사주풀이</b>에서는 재물·연애·직업·건강·귀인과 <b>인생의 황금기</b>, 앞으로 <b>10년의 큰 흐름</b>까지 약 60페이지로 전부 풀어드립니다.</div>
+        <div class="body-text" style="margin-top:2mm;font-weight:700;color:{TOKENS['seal']};">▶ 내 인생의 진짜 흐름, 프리미엄 사주풀이로 확인하세요.</div>
+      </div>
+    </div>
+    '''
+
+    content = page1 + page2 + page3
 
     header_text = f"{customer_name} 님 · {report_type}"
     footer_left = f"주문번호 {order_id}" if order_id else brand

@@ -106,6 +106,80 @@ function toSajuInfo(person) {
   };
 }
 
+// ===================================================================
+// 결과지 자동 생성(1시간 카운트다운) 로직
+//  - 고객이 정보를 저장/신청하면 autoGenerateAt = 지금 + AUTO_GEN_MS 로 예약된다.
+//  - 백그라운드 스캐너가 1분마다 돌면서, 예약 시각이 지난 주문의 PDF를 자동 생성한다.
+//  - 완료되면 resultStatus="READY" 가 되고 마이페이지에서 다운로드가 활성화된다.
+// ===================================================================
+const AUTO_GEN_MS = (Number(process.env.AUTO_GEN_MINUTES) || 60) * 60 * 1000;
+
+// 주문 하나에 대해 실제 PDF 를 생성하고 주문 레코드를 갱신한다(관리자·자동 공용).
+async function generatePdfForOrder(order) {
+  if (!order.sajuResult) throw new Error("사주 계산 결과가 없습니다.");
+  let sajuResultForPdf = order.sajuResult;
+  if (order.productType === "couple" && order.person2 && order.person2.sajuInfo && !order.sajuResult.gunghap) {
+    try {
+      const enriched = { ...order.sajuInfo, person2: order.person2.sajuInfo };
+      sajuResultForPdf = await calculateSaju(enriched);
+    } catch (e2) {
+      console.error("궁합 재계산 실패(단식 결과로 진행):", e2.message);
+    }
+  }
+  const meta = buildPdfMeta(order);
+  const pdfPath = path.join(PDF_OUTPUT_DIR, `${order.orderId}.pdf`);
+  const result = await generatePdf(sajuResultForPdf, pdfPath, meta);
+  const pdfFilename = (result && result.suggestedFilename) ||
+    sanitizeFilename(`${meta.customerName}_${meta.reportType}_${meta.reportYear}`) + ".pdf";
+  const updated = orderStore.updateOrder(order.orderId, {
+    pdfPath,
+    pdfGeneratedAt: new Date().toISOString(),
+    pdfEngine: result && result.engine,
+    pdfValidation: result && result.validation,
+    pdfAiUsed: result && result.aiUsed,
+    pdfAiSourceMap: result && result.aiSourceMap,
+    pdfFilename,
+    resultStatus: "READY",
+  });
+  return { updated, result };
+}
+
+// 결과지 자동 생성 예약을 건다(1시간 카운트다운 시작).
+function startAutoGeneration(orderId) {
+  return orderStore.updateOrder(orderId, {
+    autoGenerateAt: new Date(Date.now() + AUTO_GEN_MS).toISOString(),
+    resultStatus: "COUNTDOWN",
+  });
+}
+
+// 백그라운드 스캐너: 예약 시각이 지난 주문의 PDF 를 순차적으로 자동 생성.
+let _scanBusy = false;
+async function autoGenScan() {
+  if (_scanBusy) return;
+  _scanBusy = true;
+  try {
+    const now = Date.now();
+    for (const order of orderStore.listOrders()) {
+      if (!order.autoGenerateAt) continue;
+      if (order.pdfPath || order.resultStatus === "READY") continue;
+      if (order.resultStatus === "GENERATING") continue;
+      if (order.status === "CANCELLED") continue;
+      if (new Date(order.autoGenerateAt).getTime() > now) continue;
+      orderStore.updateOrder(order.orderId, { resultStatus: "GENERATING" });
+      try {
+        console.log("[자동생성] PDF 생성 시작:", order.orderId);
+        await generatePdfForOrder(orderStore.getOrder(order.orderId));
+        console.log("[자동생성] PDF 생성 완료:", order.orderId);
+      } catch (e) {
+        console.error("[자동생성] 실패:", order.orderId, e.message);
+        orderStore.updateOrder(order.orderId, { resultStatus: "FAILED", pdfError: e.message });
+      }
+    }
+  } finally {
+    _scanBusy = false;
+  }
+}
+
 app.post("/api/orders/register", requireCustomer, async (req, res) => {
   const {
     productName, productType,
@@ -178,6 +252,19 @@ app.get("/api/orders/:orderId/pdf", requireCustomer, (req, res) => {
   if (!order.pdfPath || !fs2.existsSync(order.pdfPath)) {
     return res.status(404).json({ success: false, message: "아직 결과지가 준비되지 않았습니다." });
   }
+  // 결과지는 1회만 다운로드 가능. 이미 받았고 관리자가 재발급을 허용하지 않았다면 차단.
+  if (order.downloadedAt && !order.redownloadAllowed) {
+    return res.status(403).json({
+      success: false,
+      message: "이미 결과지를 다운로드하셨습니다. 다시 받으시려면 관리자에게 문의해 주세요.",
+    });
+  }
+  // 다운로드 처리(1회 소진): 다운로드 시각 기록, 관리자 재발급 허용 플래그 소진.
+  orderStore.updateOrder(order.orderId, {
+    downloadedAt: new Date().toISOString(),
+    downloadCount: (order.downloadCount || 0) + 1,
+    redownloadAllowed: false,
+  });
   const meta = buildPdfMeta(order);
   const filename = order.pdfFilename ||
     (sanitizeFilename(`${meta.customerName}_${meta.reportType}_${meta.reportYear}`) + ".pdf");
@@ -221,7 +308,9 @@ app.post("/api/orders/:orderId/free-claim", requireCustomer, async (req, res) =>
     return res.status(400).json({ success: false, message: "이미 접수된 주문입니다." });
   }
   try {
-    const updated = await app.locals.fulfillOrder(order.orderId);
+    await app.locals.fulfillOrder(order.orderId);
+    // 정보 저장(무료 신청) 즉시 1시간 카운트다운을 시작한다.
+    const updated = startAutoGeneration(order.orderId);
     res.json({ success: true, order: updated });
   } catch (e) {
     console.error("이벤트 무료 신청 처리 오류:", e.message);
@@ -260,37 +349,43 @@ app.post("/api/admin/orders/:orderId/generate-pdf", requireAdmin, async (req, re
   if (!order.sajuResult) return res.status(400).json({ success: false, message: "사주 계산 결과가 없습니다." });
 
   try {
-    // 궁합 상품인데 사주 결과에 궁합 계산이 없으면, 상대방(person2)을 포함해 다시 계산하여
-    // 궁합 명식/근거가 PDF에 반영되도록 한다. (person2 전달 누락 보완)
-    let sajuResultForPdf = order.sajuResult;
-    if (order.productType === "couple" && order.person2 && order.person2.sajuInfo && !order.sajuResult.gunghap) {
-      try {
-        const enriched = { ...order.sajuInfo, person2: order.person2.sajuInfo };
-        sajuResultForPdf = await calculateSaju(enriched);
-      } catch (e2) {
-        console.error("궁합 재계산 실패(단식 결과로 진행):", e2.message);
-      }
-    }
-
-    const meta = buildPdfMeta(order);
-    const pdfPath = path.join(PDF_OUTPUT_DIR, `${order.orderId}.pdf`);
-    const result = await generatePdf(sajuResultForPdf, pdfPath, meta);
-    const pdfFilename = (result && result.suggestedFilename) ||
-      sanitizeFilename(`${meta.customerName}_${meta.reportType}_${meta.reportYear}`) + ".pdf";
-    const updated = orderStore.updateOrder(order.orderId, {
-      pdfPath,
-      pdfGeneratedAt: new Date().toISOString(),
-      pdfEngine: result && result.engine,
-      pdfValidation: result && result.validation,
-      pdfAiUsed: result && result.aiUsed,
-      pdfAiSourceMap: result && result.aiSourceMap,
-      pdfFilename,
-    });
+    const { updated, result } = await generatePdfForOrder(order);
     res.json({ success: true, order: updated, render: result });
   } catch (e) {
     console.error("관리자 PDF 생성 오류:", e.message);
     res.status(500).json({ success: false, message: "PDF 생성 중 오류가 발생했습니다: " + e.message });
   }
+});
+
+// 관리자: 결과지 재다운로드 1회 허용(고객이 다시 받을 수 있게 활성화)
+app.post("/api/admin/orders/:orderId/reenable-download", requireAdmin, (req, res) => {
+  const order = orderStore.getOrder(req.params.orderId);
+  if (!order) return res.status(404).json({ success: false, message: "주문을 찾을 수 없습니다." });
+  const updated = orderStore.updateOrder(order.orderId, { redownloadAllowed: true });
+  res.json({ success: true, order: updated });
+});
+
+// 관리자: 주문 이력 삭제
+app.delete("/api/admin/orders/:orderId", requireAdmin, (req, res) => {
+  const order = orderStore.getOrder(req.params.orderId);
+  if (!order) return res.status(404).json({ success: false, message: "주문을 찾을 수 없습니다." });
+  const fs2 = require("fs");
+  try { if (order.pdfPath && fs2.existsSync(order.pdfPath)) fs2.unlinkSync(order.pdfPath); } catch (e) {}
+  const ok = orderStore.deleteOrder(order.orderId);
+  res.json({ success: ok });
+});
+
+// 관리자: (계좌이체 등) 입금 확인 → 결제완료 처리 + 1시간 자동 생성 시작
+app.post("/api/admin/orders/:orderId/confirm-payment", requireAdmin, (req, res) => {
+  const order = orderStore.getOrder(req.params.orderId);
+  if (!order) return res.status(404).json({ success: false, message: "주문을 찾을 수 없습니다." });
+  orderStore.updateOrder(order.orderId, {
+    status: "PAID_WAITING_DELIVERY",
+    paidAt: new Date().toISOString(),
+    paidConfirmedBy: "admin",
+  });
+  const updated = startAutoGeneration(order.orderId);
+  res.json({ success: true, order: updated });
 });
 
 app.get("/api/admin/orders/:orderId/pdf", requireAdmin, (req, res) => {
@@ -417,8 +512,13 @@ app.get("/api/admin/render-health", requireAdmin, async (req, res) => {
 
 app.locals.fulfillOrder = fulfillOrder;
 
+// 결과지 자동 생성 스캐너: 1분마다 예약된 주문을 확인해 PDF 를 자동 생성.
+setInterval(autoGenScan, 60 * 1000);
+setTimeout(autoGenScan, 15 * 1000); // 부팅 직후 한 번(재시작 후 밀린 주문 따라잡기)
+
 app.listen(PORT, () => {
   console.log(`동네사주카페 서버 실행 중: http://localhost:${PORT}`);
+  console.log(`[자동생성] 결과지 자동 생성 대기시간: ${AUTO_GEN_MS / 60000}분`);
   // 서버 시작 시 PDF 렌더 엔진 가용 여부를 점검해 로그로 남긴다(섹션 4).
   probeRenderEngines()
     .then((s) => {

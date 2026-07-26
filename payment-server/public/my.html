@@ -30,39 +30,61 @@
     padding: 18px 20px; margin-bottom: 14px; box-shadow: 0 4px 14px rgba(28,35,51,0.06);
     border-top: 3px solid var(--gold);
   }
-  .order-card .row1 { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  /* 상단: 상품명(좌) + 상태 배지(우측 끝) */
+  .order-card .row1 { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
   .order-card .product-name { font-size: 15.5px; font-weight: 800; }
+  .order-card .amount-row { margin-top: 4px; }
   .order-card .amount { font-size: 15px; font-weight: 800; color: var(--ink); }
-  .order-card .meta { font-size: 12px; color: var(--text-sub); margin-bottom: 10px; }
+  .order-card .meta { font-size: 12px; color: var(--text-sub); margin-top: 6px; margin-bottom: 12px; }
+
   .status-badge {
-    display: inline-block; font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 3px;
+    display: inline-block; font-size: 11px; font-weight: 800; padding: 5px 11px; border-radius: 20px;
+    white-space: nowrap; flex-shrink: 0;
   }
   .status-pending { background: #F0E2CC; color: #7A5C3E; }
   .status-waiting { background: #FFF3CD; color: #8A6D3B; }
   .status-done { background: #D8ECD8; color: #2E5A2E; }
   .status-failed { background: #F5D6D6; color: #A33; }
 
-  .wait-note { font-size: 12px; color: var(--text-sub); margin-top: 8px; padding: 10px 12px; background: var(--paper); border-radius: 4px; }
+  /* 버튼 공통 */
+  .btn-row { display: flex; gap: 8px; margin-top: 12px; }
+  .btn {
+    flex: 1; padding: 12px 10px; border-radius: 5px; font-size: 13.5px; font-weight: 800;
+    cursor: pointer; border: none; text-align: center; font-family: inherit;
+  }
+  .btn-primary { background: var(--ink); color: var(--gold-light); }
+  .btn-primary:hover { opacity: 0.92; }
+  .btn-outline { background: transparent; color: #A33; border: 1.5px solid #E4B9B9; }
+  .btn-outline:hover { background: #F9E9E9; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* 결과지 박스 */
+  .result-box { margin-top: 12px; border-radius: 6px; padding: 16px; text-align: center; }
+  .result-box.wait { background: #FBF6EA; border: 1px solid var(--line); }
+  .result-box.ready { background: #F0F7EE; border: 1.5px solid #B9D9B0; }
+  .result-box.done { background: var(--paper); border: 1px solid var(--line); }
+  .rb-title { font-size: 14px; font-weight: 800; margin-bottom: 8px; }
+  .rb-note { font-size: 11.5px; color: var(--text-sub); margin-top: 10px; line-height: 1.55; }
+  .countdown {
+    font-size: 30px; font-weight: 800; letter-spacing: 2px; color: var(--ink);
+    font-variant-numeric: tabular-nums; margin: 6px 0 2px;
+  }
+  .result-box .btn { width: 100%; flex: none; }
+  .spinner {
+    display: inline-block; width: 18px; height: 18px; border: 2.5px solid var(--line);
+    border-top-color: var(--gold); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
   .empty { text-align: center; padding: 60px 20px; color: var(--text-sub); font-size: 14px; }
   .empty a { color: var(--ink); font-weight: 700; }
-
-  .pay-btn {
-    margin-top: 10px; padding: 9px 16px; border: none; border-radius: 4px; background: var(--ink);
-    color: var(--gold-light); font-size: 12.5px; font-weight: 700; cursor: pointer;
-  }
-  .cancel-btn {
-    margin-top: 10px; margin-left: 8px; padding: 9px 16px; border: 1px solid var(--line); border-radius: 4px;
-    background: transparent; color: #A33; font-size: 12.5px; font-weight: 700; cursor: pointer;
-  }
-  .cancel-btn:hover { background: #F5D6D6; }
 
   @media (max-width: 480px) {
     header { padding: 12px 14px; }
     main { padding: 20px 14px 50px; }
     h1 { font-size: 17px; }
     .order-card { padding: 14px 15px; }
-    .order-card .row1 { flex-direction: column; align-items: flex-start; gap: 4px; }
-    .order-card .product-name { font-size: 14px; }
+    .countdown { font-size: 26px; }
   }
 </style>
 </head>
@@ -83,71 +105,143 @@
 </main>
 
 <script>
-  function statusInfo(order) {
-    if (order.status === "PENDING_PAYMENT") return { label: "결제대기", cls: "status-pending" };
-    if (order.status === "PAID_WAITING_DELIVERY") return { label: "결제완료 · 확인 중", cls: "status-waiting" };
-    if (order.status === "DELIVERED") return { label: "결과지 전달완료", cls: "status-done" };
-    if (order.status === "FAILED") return { label: "결제실패", cls: "status-failed" };
-    if (order.status === "CANCELLED") return { label: "취소됨", cls: "status-failed" };
-    return { label: order.status || "-", cls: "status-pending" };
+  // 결과지 준비 여부: PDF가 생성됐는가
+  function hasResult(o) { return !!o.pdfPath || o.resultStatus === "READY"; }
+
+  function statusInfo(o) {
+    if (o.status === "PENDING_PAYMENT") return { label: "결제대기", cls: "status-pending" };
+    if (o.status === "CANCELLED") return { label: "취소됨", cls: "status-failed" };
+    if (hasResult(o)) {
+      if (o.downloadedAt && !o.redownloadAllowed) return { label: "다운로드 완료", cls: "status-done" };
+      return { label: "결과지 준비완료", cls: "status-done" };
+    }
+    if (o.resultStatus === "GENERATING") return { label: "결과지 생성 중", cls: "status-waiting" };
+    if (o.resultStatus === "FAILED") return { label: "생성 오류(문의)", cls: "status-failed" };
+    if (o.autoGenerateAt) {
+      return new Date(o.autoGenerateAt).getTime() > Date.now()
+        ? { label: "결과지 준비 중", cls: "status-waiting" }
+        : { label: "결과지 생성 중", cls: "status-waiting" };
+    }
+    if (o.status === "PAID_WAITING_DELIVERY") return { label: "확인 중", cls: "status-waiting" };
+    if (o.status === "DELIVERED") return { label: "전달완료", cls: "status-done" };
+    if (o.status === "FAILED") return { label: "결제실패", cls: "status-failed" };
+    return { label: o.status || "-", cls: "status-pending" };
   }
 
-  function formatRemain(deliverableAt) {
-    const remain = new Date(deliverableAt).getTime() - Date.now();
-    if (remain <= 0) return "곧 확인 예정입니다";
-    const h = Math.floor(remain / 3600000);
-    const m = Math.floor((remain % 3600000) / 60000);
-    return `사장님 확인까지 약 ${h > 0 ? h + "시간 " : ""}${m}분 남았어요`;
+  // 결제대기 주문의 버튼(결제하기 · 주문취소) — 같은 크기로 나란히
+  function payBlock(o) {
+    return `
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="location.href='/select-payment.html?orderId=${o.orderId}'">결제하기</button>
+        <button class="btn btn-outline" onclick="cancelOrder('${o.orderId}')">주문 취소</button>
+      </div>`;
+  }
+
+  // 결과지 영역(카운트다운 → 생성중 → 다운로드 1회 → 완료)
+  function resultBlock(o) {
+    if (hasResult(o)) {
+      if (o.downloadedAt && !o.redownloadAllowed) {
+        return `
+          <div class="result-box done">
+            <div class="rb-title">✅ 결과지가 전달되었어요</div>
+            <button class="btn btn-primary" disabled>결과지 다운받기 (이미 받음)</button>
+            <div class="rb-note">결과지는 1회만 다운로드할 수 있어요. 다시 받으시려면 관리자에게 문의해 주세요.</div>
+          </div>`;
+      }
+      return `
+        <div class="result-box ready">
+          <div class="rb-title">🎉 결과지가 완성되었어요!</div>
+          <button class="btn btn-primary" onclick="downloadResult('${o.orderId}', this)">결과지 다운받기 (PDF)</button>
+          <div class="rb-note">※ 결과지는 <b>1회만</b> 다운로드할 수 있어요. 꼭 저장해 두세요.</div>
+        </div>`;
+    }
+    if (o.autoGenerateAt) {
+      const future = new Date(o.autoGenerateAt).getTime() > Date.now();
+      if (future) {
+        return `
+          <div class="result-box wait">
+            <div class="rb-title">⏳ 결과지 준비 중</div>
+            <div class="countdown" data-until="${o.autoGenerateAt}">--:--:--</div>
+            <div class="rb-note">완성되면 이 화면에서 바로 다운로드할 수 있어요. (창을 닫아도 계속 진행돼요)</div>
+          </div>`;
+      }
+      return `
+        <div class="result-box wait">
+          <div class="rb-title"><span class="spinner"></span> 결과지를 만들고 있어요</div>
+          <div class="rb-note">거의 다 됐어요. 잠시만 기다려 주세요. (자동으로 새로고침돼요)</div>
+        </div>`;
+    }
+    return "";
+  }
+
+  function cardHtml(o) {
+    const st = statusInfo(o);
+    let body = "";
+    if (o.status === "PENDING_PAYMENT") body = payBlock(o);
+    body += resultBlock(o);
+    return `
+      <div class="order-card">
+        <div class="row1">
+          <div class="product-name">${o.orderName}</div>
+          <span class="status-badge ${st.cls}">${st.label}</span>
+        </div>
+        <div class="amount-row"><span class="amount">${(o.amount || 0).toLocaleString()}원</span></div>
+        <div class="meta">주문번호: ${o.orderId} · ${new Date(o.createdAt).toLocaleString("ko-KR")}</div>
+        ${body}
+      </div>`;
+  }
+
+  async function loadAndRender() {
+    const listEl = document.getElementById("orderList");
+    try {
+      const ordersRes = await fetch("/api/orders/mine");
+      const ordersData = await ordersRes.json();
+      if (!ordersData.success || !ordersData.orders.length) {
+        listEl.innerHTML = `<div class="empty">아직 등록한 주문이 없습니다.<br><a href="/">상품 보러 가기</a></div>`;
+        return;
+      }
+      listEl.innerHTML = ordersData.orders.map(cardHtml).join("");
+      tickCountdowns();
+    } catch (e) {
+      listEl.innerHTML = `<div class="empty">주문 정보를 불러오지 못했습니다: ${e.message}</div>`;
+    }
+  }
+
+  function tickCountdowns() {
+    document.querySelectorAll(".countdown").forEach((el) => {
+      const until = new Date(el.dataset.until).getTime();
+      let r = until - Date.now();
+      if (r <= 0) { el.textContent = "완성 중..."; return; }
+      const h = Math.floor(r / 3600000);
+      const m = Math.floor((r % 3600000) / 60000);
+      const s = Math.floor((r % 60000) / 1000);
+      const p = (n) => String(n).padStart(2, "0");
+      el.textContent = `${p(h)}:${p(m)}:${p(s)}`;
+    });
+  }
+
+  function downloadResult(orderId, btn) {
+    btn.disabled = true;
+    btn.textContent = "다운로드 중...";
+    // 첨부파일 다운로드(Content-Disposition) — 페이지는 그대로 유지됨
+    window.location.href = `/api/orders/${orderId}/pdf`;
+    // 잠시 후 목록을 새로고침해 '다운로드 완료' 상태를 반영
+    setTimeout(loadAndRender, 3500);
   }
 
   (async function init() {
     try {
       const meRes = await fetch("/api/auth/me");
       const meData = await meRes.json();
-      if (!meData.success) {
-        window.location.href = "/login.html";
-        return;
-      }
+      if (!meData.success) { window.location.href = "/login.html"; return; }
       document.getElementById("userInfo").textContent = `${meData.user.name}님 (${meData.user.email})`;
-
-      const ordersRes = await fetch("/api/orders/mine");
-      const ordersData = await ordersRes.json();
-      const listEl = document.getElementById("orderList");
-
-      if (!ordersData.success || !ordersData.orders.length) {
-        listEl.innerHTML = `<div class="empty">아직 등록한 주문이 없습니다.<br><a href="/">상품 보러 가기</a></div>`;
-        return;
-      }
-
-      listEl.innerHTML = ordersData.orders.map((order) => {
-        const st = statusInfo(order);
-        let extra = "";
-        if (order.status === "PENDING_PAYMENT") {
-          extra = `
-            <button class="pay-btn" onclick="location.href='/select-payment.html?orderId=${order.orderId}'">결제하러 가기</button>
-            <button class="cancel-btn" onclick="cancelOrder('${order.orderId}')">상품/생년월일이 잘못됐어요 (주문 취소)</button>
-          `;
-        } else if (order.status === "PAID_WAITING_DELIVERY" && order.deliverableAt) {
-          extra = `<div class="wait-note">⏳ ${formatRemain(order.deliverableAt)}. 결과지는 사장님이 확인 후 입력하신 이메일/연락처로 직접 전달해드려요.</div>`;
-        }
-        // 결과지(PDF)가 준비된 주문은 언제든 다시 받을 수 있게 한다.
-        if (order.pdfFilename || order.status === "DELIVERED") {
-          extra += `<button class="pay-btn" onclick="location.href='/api/orders/${order.orderId}/pdf'">📄 결과지 다시 받기 (PDF)</button>`;
-        }
-        return `
-          <div class="order-card">
-            <div class="row1">
-              <div class="product-name">${order.orderName}</div>
-              <div class="amount">${order.amount.toLocaleString()}원</div>
-            </div>
-            <div class="meta">주문번호: ${order.orderId} · ${new Date(order.createdAt).toLocaleString("ko-KR")}</div>
-            <span class="status-badge ${st.cls}">${st.label}</span>
-            ${extra}
-          </div>
-        `;
-      }).join("");
+      await loadAndRender();
+      // 카운트다운은 1초마다, 데이터 새로고침은 15초마다
+      setInterval(tickCountdowns, 1000);
+      setInterval(loadAndRender, 15000);
     } catch (e) {
-      document.getElementById("orderList").innerHTML = `<div class="empty">주문 정보를 불러오지 못했습니다: ${e.message}</div>`;
+      document.getElementById("orderList").innerHTML =
+        `<div class="empty">주문 정보를 불러오지 못했습니다: ${e.message}</div>`;
     }
   })();
 
@@ -162,10 +256,7 @@
     try {
       const res = await fetch(`/api/orders/${orderId}/cancel`, { method: "POST" });
       const data = await res.json();
-      if (!data.success) {
-        alert(data.message || "주문 취소에 실패했습니다.");
-        return;
-      }
+      if (!data.success) { alert(data.message || "주문 취소에 실패했습니다."); return; }
       alert("주문이 취소되었습니다. 홈페이지에서 새로 주문해 주세요.");
       window.location.href = "/";
     } catch (e) {
