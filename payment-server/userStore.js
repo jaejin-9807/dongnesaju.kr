@@ -127,7 +127,8 @@ function findOrCreateBySocial({ provider, socialId, email, name }) {
     createdAt: new Date().toISOString(),
   };
   writeAll(all);
-  return sanitize(all[userId]);
+  // _isNew: 이번 호출에서 '처음 가입'한 소셜 회원임을 알림(관리자 카톡 알림용)
+  return { ...sanitize(all[userId]), _isNew: true };
 }
 
 function sanitize(user) {

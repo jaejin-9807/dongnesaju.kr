@@ -33,6 +33,7 @@ const fetch = globalThis.fetch ? globalThis.fetch.bind(globalThis) : require("no
 const userStore = require("../userStore");
 const session = require("../session");
 const { COOKIE_NAME } = require("./auth");
+const kakaoNotify = require("../kakaoNotify");
 
 const router = express.Router();
 
@@ -215,6 +216,15 @@ router.get("/:provider/callback", async (req, res, next) => {
       email: profile.email,
       name: profile.name,
     });
+
+    // 처음 가입한 소셜 회원이면 사장님에게 카카오톡 알림 전송
+    if (user && user._isNew) {
+      kakaoNotify.notify(
+        `🙋 [동네사주카페] 새 회원가입 (${friendlyName(provider)})\n` +
+        `· 이름: ${user.name || "-"}\n` +
+        `· 이메일: ${user.email || "-"}`
+      );
+    }
 
     issueSessionAndRedirect(res, user);
   } catch (e) {
