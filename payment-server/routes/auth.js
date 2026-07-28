@@ -20,8 +20,12 @@ const COOKIE_NAME = "saju_session";
 
 router.post("/signup", (req, res) => {
   const { email, password, name, phone } = req.body;
-  if (!email || !password || !name) {
-    return res.status(400).json({ success: false, message: "이메일, 비밀번호, 이름은 필수입니다." });
+  // 이메일은 선택. 이름·비밀번호는 필수이며, 이메일 또는 휴대폰 중 하나는 있어야 한다.
+  if (!password || !name) {
+    return res.status(400).json({ success: false, message: "이름과 비밀번호는 필수입니다." });
+  }
+  if (!email && !phone) {
+    return res.status(400).json({ success: false, message: "이메일 또는 휴대폰 번호 중 하나는 입력해 주세요." });
   }
   if (String(password).length < 4) {
     return res.status(400).json({ success: false, message: "비밀번호는 4자 이상이어야 합니다." });
@@ -32,7 +36,7 @@ router.post("/signup", (req, res) => {
     session.setCookie(res, COOKIE_NAME, token);
     // 사장님에게 카카오톡 알림(새 회원가입) — 설정돼 있을 때만 전송
     kakaoNotify.notify(
-      `🙋 [동네사주카페] 새 회원가입\n· 이름: ${name}\n· 이메일: ${email}\n· 연락처: ${phone || "-"}`
+      `🙋 [동네사주카페] 새 회원가입\n· 이름: ${name}\n· 이메일: ${email || "-"}\n· 연락처: ${phone || "-"}`
     );
     res.json({ success: true, user });
   } catch (e) {
@@ -41,13 +45,15 @@ router.post("/signup", (req, res) => {
 });
 
 router.post("/login", (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) {
-    return res.status(400).json({ success: false, message: "이메일과 비밀번호를 입력해 주세요." });
+  // identifier: 이메일 또는 휴대폰 번호 (구버전 호환: email 필드도 허용)
+  const identifier = req.body.identifier || req.body.email;
+  const password = req.body.password;
+  if (!identifier || !password) {
+    return res.status(400).json({ success: false, message: "이메일(또는 휴대폰 번호)과 비밀번호를 입력해 주세요." });
   }
-  const user = userStore.verifyLogin(email, password);
+  const user = userStore.verifyLogin(identifier, password);
   if (!user) {
-    return res.status(401).json({ success: false, message: "이메일 또는 비밀번호가 올바르지 않습니다." });
+    return res.status(401).json({ success: false, message: "아이디(이메일/휴대폰) 또는 비밀번호가 올바르지 않습니다." });
   }
   const token = session.sign({ userId: user.userId, role: user.role });
   session.setCookie(res, COOKIE_NAME, token);

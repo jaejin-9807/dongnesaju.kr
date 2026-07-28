@@ -16,7 +16,9 @@ const path = require("path");
 const crypto = require("crypto");
 const { nanoid } = require("nanoid");
 
-const DB_PATH = path.join(__dirname, "users.json");
+const DATA_DIR = process.env.DATA_DIR || __dirname;
+try { require("fs").mkdirSync(DATA_DIR, { recursive: true }); } catch (e) {}
+const DB_PATH = path.join(DATA_DIR, "users.json");
 
 function readAll() {
   if (!fs.existsSync(DB_PATH)) return {};
@@ -45,8 +47,18 @@ function verifyPassword(password, salt, hash) {
 }
 
 function findByEmail(email) {
+  if (!email) return null;
   const all = readAll();
-  return Object.values(all).find((u) => u.email.toLowerCase() === String(email).toLowerCase()) || null;
+  const target = String(email).toLowerCase();
+  return Object.values(all).find((u) => u.email && u.email.toLowerCase() === target) || null;
+}
+
+function findByPhone(phone) {
+  if (!phone) return null;
+  const digits = String(phone).replace(/\D/g, "");
+  if (!digits) return null;
+  const all = readAll();
+  return Object.values(all).find((u) => u.phone && String(u.phone).replace(/\D/g, "") === digits) || null;
 }
 
 function findById(userId) {
@@ -55,18 +67,22 @@ function findById(userId) {
 }
 
 /**
- * 이메일+비밀번호로 신규 회원 생성
+ * 신규 회원 생성. 이메일은 선택이며, 이메일 또는 휴대폰 중 하나는 있어야 한다.
+ * (어르신 등 이메일이 없는 분은 휴대폰 번호로 가입/로그인)
  */
 function createUser({ email, password, name, phone, role }) {
-  if (findByEmail(email)) {
-    throw new Error("이미 가입된 이메일입니다.");
+  const emailNorm = email ? String(email).toLowerCase() : "";
+  if (!emailNorm && !phone) {
+    throw new Error("이메일 또는 휴대폰 번호 중 하나는 입력해 주세요.");
   }
+  if (emailNorm && findByEmail(emailNorm)) throw new Error("이미 가입된 이메일입니다.");
+  if (phone && findByPhone(phone)) throw new Error("이미 가입된 휴대폰 번호입니다.");
   const { salt, hash } = hashPassword(password);
   const userId = "user_" + nanoid(12);
   const all = readAll();
   all[userId] = {
     userId,
-    email: String(email).toLowerCase(),
+    email: emailNorm, // 없으면 빈 문자열
     passwordSalt: salt,
     passwordHash: hash,
     name: name || "",
@@ -80,11 +96,12 @@ function createUser({ email, password, name, phone, role }) {
 }
 
 /**
- * 이메일+비밀번호 로그인 검증
+ * 이메일 또는 휴대폰 번호 + 비밀번호 로그인 검증
  */
-function verifyLogin(email, password) {
-  const user = findByEmail(email);
-  if (!user) return null;
+function verifyLogin(identifier, password) {
+  let user = findByEmail(identifier);
+  if (!user) user = findByPhone(identifier);
+  if (!user || !user.passwordHash) return null;
   if (!verifyPassword(password, user.passwordSalt, user.passwordHash)) return null;
   return sanitize(user);
 }
@@ -101,8 +118,9 @@ function findOrCreateBySocial({ provider, socialId, email, name }) {
   const userId = "user_" + nanoid(12);
   all[userId] = {
     userId,
-    email: email || `${provider}_${socialId}@social.local`,
+    email: email || "",
     name: name || "",
+    phone: "",
     provider,
     socialId,
     role: "customer",
@@ -118,4 +136,4 @@ function sanitize(user) {
   return safe;
 }
 
-module.exports = { createUser, verifyLogin, findByEmail, findById, findOrCreateBySocial, sanitize };
+module.exports = { createUser, verifyLogin, findByEmail, findByPhone, findById, findOrCreateBySocial, sanitize };

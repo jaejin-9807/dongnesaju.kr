@@ -13,3 +13,4 @@ pypdf>=4.0
 matplotlib>=3.6
 fonttools>=4.40
 Pillow>=9.0
+korean_lunar_calendar>=0.3.1

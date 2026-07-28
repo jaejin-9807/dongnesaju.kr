@@ -99,6 +99,7 @@ function toSajuInfo(person) {
     name: String(person.name || ""),
     gender: person.gender === "남성" ? "M" : "F",
     calendarType: person.calendarType || "양력",
+    isLeapMonth: !!person.isLeapMonth,   // 음력 윤달 여부
     year: Number(person.year),
     month: Number(person.month),
     day: Number(person.day),
@@ -188,8 +189,12 @@ app.post("/api/orders/register", requireCustomer, async (req, res) => {
     person1, person2,
   } = req.body;
 
-  if (!productName || !customerName || !customerEmail || !person1) {
-    return res.status(400).json({ success: false, message: "필수 항목(상품명/이름/이메일/생년월일)이 비어 있습니다." });
+  if (!productName || !customerName || !person1) {
+    return res.status(400).json({ success: false, message: "필수 항목(상품명/이름/생년월일)이 비어 있습니다." });
+  }
+  // 이메일은 선택. 연락처(휴대폰) 또는 이메일 중 하나는 있어야 결과 안내가 가능하다.
+  if (!customerEmail && !customerPhone) {
+    return res.status(400).json({ success: false, message: "연락받으실 휴대폰 번호 또는 이메일 중 하나는 입력해 주세요." });
   }
   if (!person1.year || !person1.month || !person1.day) {
     return res.status(400).json({ success: false, message: "생년월일을 정확히 입력해 주세요." });
@@ -385,16 +390,17 @@ app.delete("/api/admin/orders/:orderId", requireAdmin, (req, res) => {
   res.json({ success: ok });
 });
 
-// 관리자: (계좌이체 등) 입금 확인 → 결제완료 처리 + 1시간 자동 생성 시작
+// 관리자: (계좌이체 등) 입금 확인 → 결제완료 처리
+// ★ 결과지는 자동 생성하지 않는다. 관리자가 '운세풀이'를 눌러야만 생성되고,
+//    그때부터 고객 마이페이지의 다운로드 버튼이 활성화된다.
 app.post("/api/admin/orders/:orderId/confirm-payment", requireAdmin, (req, res) => {
   const order = orderStore.getOrder(req.params.orderId);
   if (!order) return res.status(404).json({ success: false, message: "주문을 찾을 수 없습니다." });
-  orderStore.updateOrder(order.orderId, {
+  const updated = orderStore.updateOrder(order.orderId, {
     status: "PAID_WAITING_DELIVERY",
     paidAt: new Date().toISOString(),
     paidConfirmedBy: "admin",
   });
-  const updated = startAutoGeneration(order.orderId);
   res.json({ success: true, order: updated });
 });
 

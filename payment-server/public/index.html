@@ -243,13 +243,6 @@
   <div class="card">
     <h2>📜 상품 안내</h2>
     <div class="product-list">
-      <div class="product-card" style="border:2px solid #C0392B;">
-        <span class="badge" style="background:#C0392B;">무료 이벤트</span>
-        <div class="name">이벤트 사주풀이 (이달의 운세)</div>
-        <div class="desc-small">이번 달 내 운세를 무료로! 회원가입 후 0원으로 신청하면 맛보기 결과지를 보내드려요.</div>
-        <div class="price">0<span class="unit">원</span></div>
-        <button class="order-btn" data-product="이벤트 사주풀이" data-price="0" data-type="single">무료로 신청하기</button>
-      </div>
       <div class="product-card">
         <span class="badge">BEST</span>
         <div class="name">프리미엄 사주풀이</div>
@@ -330,7 +323,8 @@
             <label>양력 / 음력</label>
             <select id="fCalType">
               <option value="양력">양력</option>
-              <option value="음력">음력</option>
+              <option value="음력">음력(평달)</option>
+              <option value="음력윤달">음력(윤달)</option>
             </select>
           </div>
           <div>
@@ -351,8 +345,8 @@
       <div class="form-row">
         <label>연락처</label>
         <div class="form-grid-2">
-          <input type="email" id="fEmail" placeholder="이메일" />
-          <input type="tel" id="fPhone" placeholder="휴대폰 번호 (선택)" />
+          <input type="email" id="fEmail" placeholder="이메일 (선택)" />
+          <input type="tel" id="fPhone" placeholder="휴대폰 번호" />
         </div>
       </div>
 
@@ -395,7 +389,8 @@
               <label>양력 / 음력</label>
               <select id="pCalType">
                 <option value="양력">양력</option>
-                <option value="음력">음력</option>
+                <option value="음력">음력(평달)</option>
+                <option value="음력윤달">음력(윤달)</option>
               </select>
             </div>
             <div>
@@ -561,10 +556,17 @@
     const email = document.getElementById("fEmail").value.trim();
     const phone = document.getElementById("fPhone").value.trim();
 
-    if (!name || !year || !month || !day || !email) {
-      showError("이름, 생년월일, 이메일은 필수 입력 항목입니다.");
+    if (!name || !year || !month || !day) {
+      showError("이름과 생년월일은 필수 입력 항목입니다.");
       return;
     }
+    if (!phone) {
+      showError("결과 안내를 받으실 휴대폰 번호를 입력해 주세요. (이메일은 선택)");
+      return;
+    }
+
+    const isLeap1 = calType === "음력윤달";
+    const cal1 = isLeap1 ? "음력" : calType;
 
     const payload = {
       productName: selectedProduct.name,
@@ -575,7 +577,7 @@
       customerPhone: phone,
       person1: {
         name, nameHanja, gender, marital,
-        calendarType: calType,
+        calendarType: cal1, isLeapMonth: isLeap1,
         year: Number(year), month: Number(month), day: Number(day),
         hour: hour ? Number(hour) : null, minute: minute ? Number(minute) : null,
         zodiac: calcZodiac(year),
@@ -589,7 +591,9 @@
       const pYear = document.getElementById("pYear").value.trim();
       const pMonth = document.getElementById("pMonth").value.trim();
       const pDay = document.getElementById("pDay").value.trim();
-      const pCalType = document.getElementById("pCalType").value;
+      const pCalTypeRaw = document.getElementById("pCalType").value;
+      const pIsLeap = pCalTypeRaw === "음력윤달";
+      const pCalType = pIsLeap ? "음력" : pCalTypeRaw;
       const pHour = document.getElementById("pHour").value.trim();
       const pMinute = document.getElementById("pMinute").value.trim();
 
@@ -600,7 +604,7 @@
 
       payload.person2 = {
         name: pName, nameHanja: pNameHanja, gender: pGender,
-        calendarType: pCalType,
+        calendarType: pCalType, isLeapMonth: pIsLeap,
         year: Number(pYear), month: Number(pMonth), day: Number(pDay),
         hour: pHour ? Number(pHour) : null, minute: pMinute ? Number(pMinute) : null,
         zodiac: calcZodiac(pYear),

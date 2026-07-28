@@ -171,6 +171,14 @@
           <div class="rb-note">거의 다 됐어요. 잠시만 기다려 주세요. (자동으로 새로고침돼요)</div>
         </div>`;
     }
+    // 결제(입금) 확인은 됐지만 아직 사장님이 결과지를 만들기 전
+    if (o.status === "PAID_WAITING_DELIVERY") {
+      return `
+        <div class="result-box wait">
+          <div class="rb-title">🖊️ 결과지를 준비하고 있어요</div>
+          <div class="rb-note">사장님이 정성껏 사주를 풀이하는 중이에요. 완성되면 이 화면에서 바로 다운로드할 수 있어요.</div>
+        </div>`;
+    }
     return "";
   }
 

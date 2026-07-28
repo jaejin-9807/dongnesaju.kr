@@ -49,12 +49,22 @@ def main():
         hour = int(payload.get("hour", 0) or 0)
         minute = int(payload.get("minute", 0) or 0)
 
+        # 음력 입력이면 양력으로 변환한다(윤달 지원). 어르신 사용자는 음력 생일이 많다.
         if calendar_type == "음력":
-            print(json.dumps({
-                "success": False,
-                "message": "음력 생년월일 자동 변환은 아직 지원되지 않습니다. 양력으로 다시 입력해 주세요."
-            }, ensure_ascii=False))
-            sys.exit(1)
+            is_leap = bool(payload.get("isLeapMonth", False))
+            try:
+                from korean_lunar_calendar import KoreanLunarCalendar
+                cal = KoreanLunarCalendar()
+                cal.setLunarDate(year, month, day, is_leap)
+                if not cal.solarYear:
+                    raise ValueError("해당 음력 날짜를 변환할 수 없습니다.")
+                year, month, day = cal.solarYear, cal.solarMonth, cal.solarDay
+            except Exception as e:
+                print(json.dumps({
+                    "success": False,
+                    "message": f"음력 생년월일 변환에 실패했습니다: {e}. 날짜(특히 윤달 여부)를 확인해 주세요."
+                }, ensure_ascii=False))
+                sys.exit(1)
 
         birth_dt = datetime(year, month, day, hour, minute)
         pillars = calculate_saju(birth_dt, gender)

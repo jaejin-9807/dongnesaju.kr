@@ -64,9 +64,9 @@
     <button class="social-btn kakao" id="kakaoBtn">💬  카카오로 로그인</button>
     <button class="social-btn google" id="googleBtn">G  구글로 로그인</button>
 
-    <div class="divider">또는 이메일로 로그인</div>
+    <div class="divider">또는 이메일·휴대폰으로 로그인</div>
 
-    <div class="form-row"><input type="email" id="email" placeholder="이메일" /></div>
+    <div class="form-row"><input type="text" id="email" placeholder="이메일 또는 휴대폰 번호" /></div>
     <div class="form-row"><input type="password" id="password" placeholder="비밀번호" /></div>
     <button class="submit-btn" id="loginBtn">로그인</button>
     <div class="msg" id="msg"></div>
@@ -93,18 +93,18 @@
   })();
 
   document.getElementById("loginBtn").addEventListener("click", async () => {
-    const email = document.getElementById("email").value.trim();
+    const identifier = document.getElementById("email").value.trim();
     const password = document.getElementById("password").value;
     msg.style.color = "#B03A3A";
-    if (!email || !password) {
-      msg.textContent = "이메일과 비밀번호를 입력해 주세요.";
+    if (!identifier || !password) {
+      msg.textContent = "이메일(또는 휴대폰 번호)과 비밀번호를 입력해 주세요.";
       return;
     }
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ identifier, password }),
       });
       const data = await res.json();
       if (!data.success) {

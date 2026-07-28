@@ -65,11 +65,11 @@
     <button class="social-btn kakao" id="kakaoBtn">💬  카카오로 시작하기</button>
     <button class="social-btn google" id="googleBtn">G  구글로 시작하기</button>
 
-    <div class="divider">또는 이메일로 가입</div>
+    <div class="divider">또는 직접 가입</div>
 
     <div class="form-row"><label>이름</label><input type="text" id="name" placeholder="예: 김재진" /></div>
-    <div class="form-row"><label>이메일</label><input type="email" id="email" placeholder="이메일" /></div>
-    <div class="form-row"><label>휴대폰 번호 (선택)</label><input type="tel" id="phone" placeholder="010-1234-5678" /></div>
+    <div class="form-row"><label>휴대폰 번호</label><input type="tel" id="phone" placeholder="010-1234-5678" /></div>
+    <div class="form-row"><label>이메일 <span style="color:#999;font-weight:400;">(선택 · 없으면 비워두세요)</span></label><input type="email" id="email" placeholder="이메일 (선택)" /></div>
     <div class="form-row"><label>비밀번호</label><input type="password" id="password" placeholder="4자 이상" /></div>
     <button class="submit-btn" id="signupBtn">회원가입</button>
     <div class="msg" id="msg"></div>
@@ -100,8 +100,12 @@
     const phone = document.getElementById("phone").value.trim();
     const password = document.getElementById("password").value;
     msg.style.color = "#B03A3A";
-    if (!name || !email || !password) {
-      msg.textContent = "이름, 이메일, 비밀번호는 필수입니다.";
+    if (!name || !password) {
+      msg.textContent = "이름과 비밀번호를 입력해 주세요.";
+      return;
+    }
+    if (!email && !phone) {
+      msg.textContent = "휴대폰 번호 또는 이메일 중 하나는 입력해 주세요.";
       return;
     }
     try {

@@ -28,12 +28,18 @@
  */
 const express = require("express");
 const crypto = require("crypto");
-const fetch = require("node-fetch");
+// Node 18+ 내장 fetch 우선 사용(없으면 node-fetch 폴백)
+const fetch = globalThis.fetch ? globalThis.fetch.bind(globalThis) : require("node-fetch");
 const userStore = require("../userStore");
 const session = require("../session");
 const { COOKIE_NAME } = require("./auth");
 
 const router = express.Router();
+
+// 카카오 REST 키: 소셜 로그인 전용 KAKAO_CLIENT_ID 가 없으면 알림용 KAKAO_REST_KEY 재사용
+function kakaoRestKey() {
+  return process.env.KAKAO_CLIENT_ID || process.env.KAKAO_REST_KEY || "";
+}
 
 function baseUrl() {
   return process.env.BASE_URL || "http://localhost:3000";
@@ -46,7 +52,7 @@ function redirectUri(provider) {
 function notConfigured(provider) {
   const map = {
     naver: !process.env.NAVER_CLIENT_ID || !process.env.NAVER_CLIENT_SECRET,
-    kakao: !process.env.KAKAO_CLIENT_ID,
+    kakao: !kakaoRestKey(),
     google: !process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET,
   };
   return map[provider];
@@ -91,7 +97,7 @@ router.get("/:provider", (req, res, next) => {
       + `&state=${state}`;
   } else if (provider === "kakao") {
     authUrl = `https://kauth.kakao.com/oauth/authorize?response_type=code`
-      + `&client_id=${encodeURIComponent(process.env.KAKAO_CLIENT_ID)}`
+      + `&client_id=${encodeURIComponent(kakaoRestKey())}`
       + `&redirect_uri=${encodeURIComponent(redirectUri("kakao"))}`
       + `&state=${state}`;
   } else if (provider === "google") {
@@ -150,7 +156,7 @@ router.get("/:provider/callback", async (req, res, next) => {
     if (provider === "kakao") {
       const params = new URLSearchParams({
         grant_type: "authorization_code",
-        client_id: process.env.KAKAO_CLIENT_ID,
+        client_id: kakaoRestKey(),
         redirect_uri: redirectUri("kakao"),
         code: String(code),
       });
