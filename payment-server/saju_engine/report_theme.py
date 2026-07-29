@@ -117,8 +117,8 @@ body {{ string-set: docheader "{header_text}"; }}
   border-top:0.8pt solid {t['gold_soft']}; border-bottom:0.8pt solid {t['gold_soft']};
 }}
 .cover .c-type {{ font-family:'SerifKR'; font-size:15.5pt; color:{t['seal']}; letter-spacing:0.14em; margin-bottom:5mm; font-weight:700; }}
-.cover .c-name {{ font-family:'SerifKR'; font-size:26pt; font-weight:700; color:{t['ink']}; letter-spacing:0.04em; line-height:1.25; margin-bottom:4mm; }}
-.cover .c-name .nim {{ font-size:15pt; color:{t['ink_soft']}; font-weight:400; }}
+.cover .c-name {{ font-family:'SerifKR'; font-size:34pt; font-weight:700; color:{t['ink']}; letter-spacing:0.12em; line-height:1.3; margin-bottom:4mm; text-shadow:0 1px 0 rgba(160,43,35,0.10); }}
+.cover .c-name .nim {{ font-family:'SerifKR'; font-size:17pt; color:{t['seal']}; font-weight:700; letter-spacing:0.04em; }}
 .cover .c-birth {{ font-family:'SansKR'; font-size:10.5pt; color:{t['ink_soft']}; letter-spacing:0.02em; line-height:1.7; }}
 .cover .c-year {{ font-family:'SerifKR'; font-size:12.5pt; color:{t['gold']}; letter-spacing:0.1em; margin-top:4mm; font-weight:700; }}
 .cover .c-brand {{ display:none; }}
