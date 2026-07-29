@@ -228,13 +228,34 @@
     });
   }
 
-  function downloadResult(orderId, btn) {
+  async function downloadResult(orderId, btn) {
+    const orig = btn.textContent;
     btn.disabled = true;
     btn.textContent = "다운로드 중...";
-    // 첨부파일 다운로드(Content-Disposition) — 페이지는 그대로 유지됨
-    window.location.href = `/api/orders/${orderId}/pdf`;
-    // 잠시 후 목록을 새로고침해 '다운로드 완료' 상태를 반영
-    setTimeout(loadAndRender, 3500);
+    try {
+      const res = await fetch(`/api/orders/${orderId}/pdf`);
+      if (!res.ok) {
+        let msg = "결과지를 받지 못했습니다.";
+        try { const j = await res.json(); if (j.message) msg = j.message; } catch (e) {}
+        alert(msg);
+        btn.disabled = false; btn.textContent = orig;
+        loadAndRender();
+        return;
+      }
+      const blob = await res.blob();
+      let fname = "사주풀이_결과지.pdf";
+      const cd = res.headers.get("Content-Disposition");
+      if (cd) { const m = /filename\*=UTF-8''([^;]+)/.exec(cd); if (m) { try { fname = decodeURIComponent(m[1]); } catch (e) {} } }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = fname;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      setTimeout(loadAndRender, 1500);
+    } catch (e) {
+      alert("다운로드 중 오류가 발생했습니다: " + e.message);
+      btn.disabled = false; btn.textContent = orig;
+    }
   }
 
   (async function init() {

@@ -137,4 +137,12 @@ function sanitize(user) {
   return safe;
 }
 
-module.exports = { createUser, verifyLogin, findByEmail, findByPhone, findById, findOrCreateBySocial, sanitize };
+// 관리자: 전체 회원 목록(최근 가입 순, 비밀번호 제외)
+function listUsers() {
+  const all = readAll();
+  return Object.values(all)
+    .map(sanitize)
+    .sort((a, b) => (String(a.createdAt) < String(b.createdAt) ? 1 : -1));
+}
+
+module.exports = { createUser, verifyLogin, findByEmail, findByPhone, findById, findOrCreateBySocial, sanitize, listUsers };

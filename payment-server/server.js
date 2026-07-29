@@ -20,6 +20,7 @@ const authRoutes = require("./routes/auth");
 const socialAuthRoutes = require("./routes/socialAuth");
 const adminAuthRoutes = require("./routes/adminAuth");
 const orderStore = require("./orderStore");
+const userStore = require("./userStore");
 const { calculateSaju, generatePdf, probeRenderEngines } = require("./sajuEngine");
 const { fulfillOrder, PDF_OUTPUT_DIR } = require("./fulfillOrder");
 const { sendResultToCustomer, sendResultSmsToCustomer } = require("./mailer");
@@ -264,8 +265,12 @@ app.get("/api/orders/:orderId/pdf", requireCustomer, (req, res) => {
     return res.status(403).json({ success: false, message: "본인 주문의 결과지만 받을 수 있습니다." });
   }
   const fs2 = require("fs");
-  if (!order.pdfPath || !fs2.existsSync(order.pdfPath)) {
+  if (!order.pdfPath) {
     return res.status(404).json({ success: false, message: "아직 결과지가 준비되지 않았습니다." });
+  }
+  if (!fs2.existsSync(order.pdfPath)) {
+    // 경로는 있는데 파일이 없는 경우(예: 저장공간 초기화). 관리자가 다시 생성하면 복구됨.
+    return res.status(404).json({ success: false, message: "결과지 파일을 다시 준비 중입니다. 잠시 후 다시 시도하거나 사장님께 문의해 주세요." });
   }
   // 결과지는 1회만 다운로드 가능. 이미 받았고 관리자가 재발급을 허용하지 않았다면 차단.
   if (order.downloadedAt && !order.redownloadAllowed) {
@@ -356,6 +361,15 @@ app.get("/api/orders/:orderId", (req, res) => {
 // ---------------------------------------------------------------
 app.get("/api/admin/orders", requireAdmin, (req, res) => {
   res.json({ success: true, orders: orderStore.listOrders() });
+});
+
+// 관리자: 회원(가입자) 명단 + 각 회원의 주문 수
+app.get("/api/admin/users", requireAdmin, (req, res) => {
+  const orders = orderStore.listOrders();
+  const countByUser = {};
+  for (const o of orders) { if (o.userId) countByUser[o.userId] = (countByUser[o.userId] || 0) + 1; }
+  const users = userStore.listUsers().map((u) => ({ ...u, orderCount: countByUser[u.userId] || 0 }));
+  res.json({ success: true, users });
 });
 
 app.post("/api/admin/orders/:orderId/generate-pdf", requireAdmin, async (req, res) => {

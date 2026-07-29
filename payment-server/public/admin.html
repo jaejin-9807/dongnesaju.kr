@@ -39,6 +39,16 @@
   .sample-btn:disabled { opacity: 0.5; cursor: not-allowed; }
   .sample-btn.secondary { background: var(--paper); color: var(--ink); border: 1px solid var(--line); }
 
+  .view-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+  .view-tab { padding: 9px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--paper-2); font-size: 13px; font-weight: 800; cursor: pointer; color: var(--text-sub); }
+  .view-tab.active { background: var(--ink); color: var(--gold-light); border-color: var(--ink); }
+  .member-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+  .member-card { background: var(--paper-2); border: 1px solid var(--line); border-radius: 8px; padding: 14px; box-shadow: 0 3px 10px rgba(28,35,51,.05); }
+  .mc-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; }
+  .mc-name { font-size: 15px; font-weight: 800; }
+  .mc-badge { font-size: 10.5px; font-weight: 800; background: #F0E2CC; color: #7A5C3E; border-radius: 12px; padding: 3px 9px; white-space: nowrap; }
+  .mc-info { font-size: 12.5px; line-height: 1.9; color: var(--ink); word-break: break-all; }
+
   .filter-tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
   .filter-tab {
     padding: 7px 13px; border-radius: 20px; border: 1px solid var(--line); background: var(--paper-2);
@@ -106,7 +116,13 @@
 </header>
 
 <main>
-  <h1>주문 관리</h1>
+  <h1 id="pageTitle">주문 관리</h1>
+  <div class="view-tabs" id="viewTabs">
+    <button class="view-tab active" data-view="orders">📋 주문 관리</button>
+    <button class="view-tab" data-view="members">👥 회원 관리</button>
+  </div>
+
+  <div id="ordersView">
   <div class="sub">회원(사용자)을 눌러 주문 이력을 펼치세요. 결과지 생성 상태·사용자 다운로드 여부를 한눈에 볼 수 있어요.</div>
 
   <div class="sample-box">
@@ -130,6 +146,14 @@
   </div>
 
   <div id="groupList"></div>
+  </div>
+
+  <div id="membersView" style="display:none;">
+    <div class="sub">지금까지 가입한 회원 명단입니다. (최근 가입 순)</div>
+    <div class="search-box"><input id="memberSearch" type="text" placeholder="🔍 이름 · 이메일 · 전화번호 검색" /></div>
+    <div id="memberSummary" class="sub" style="font-weight:700;color:var(--ink);"></div>
+    <div id="memberList"></div>
+  </div>
 </main>
 
 <script>
@@ -402,6 +426,57 @@
     await fetch("/api/admin/auth/logout", { method: "POST" });
     window.location.href = "/admin-login.html";
   });
+
+  // ===== 회원 관리 탭 =====
+  let allMembers = [];
+  function providerLabel(p) { return { email: "이메일", kakao: "카카오", naver: "네이버", google: "구글" }[p] || p || "-"; }
+  async function loadMembers() {
+    const el = document.getElementById("memberList");
+    try {
+      const res = await fetch("/api/admin/users");
+      const data = await res.json();
+      if (!data.success) {
+        if (res.status === 401) { window.location.href = "/admin-login.html"; return; }
+        el.innerHTML = `<div class="empty">회원 목록을 불러오지 못했습니다.</div>`; return;
+      }
+      allMembers = data.users; renderMembers();
+    } catch (e) { el.innerHTML = `<div class="empty">불러오기 오류: ${e.message}</div>`; }
+  }
+  function renderMembers() {
+    const q = (document.getElementById("memberSearch").value || "").trim().toLowerCase();
+    const qd = q.replace(/\D/g, "");
+    let list = allMembers.filter((u) => {
+      if (!q) return true;
+      return String(u.name || "").toLowerCase().includes(q)
+        || String(u.email || "").toLowerCase().includes(q)
+        || (qd && String(u.phone || "").replace(/\D/g, "").includes(qd));
+    });
+    document.getElementById("memberSummary").textContent =
+      `총 ${allMembers.length}명 가입` + (q ? ` · 검색결과 ${list.length}명` : "");
+    const el = document.getElementById("memberList");
+    if (!list.length) { el.innerHTML = `<div class="empty">해당하는 회원이 없습니다.</div>`; return; }
+    el.innerHTML = `<div class="member-cards">` + list.map((u) => `
+      <div class="member-card">
+        <div class="mc-top"><span class="mc-name">${u.name || "이름없음"}</span><span class="mc-badge">${providerLabel(u.provider)}</span></div>
+        <div class="mc-info">
+          <div>📧 ${u.email || "-"}</div>
+          <div>📱 ${u.phone || "-"}</div>
+          <div>🧾 주문 ${u.orderCount || 0}건</div>
+          <div>🗓️ ${u.createdAt ? new Date(u.createdAt).toLocaleString("ko-KR") : "-"} 가입</div>
+        </div>
+      </div>`).join("") + `</div>`;
+  }
+  document.getElementById("viewTabs").addEventListener("click", (e) => {
+    const b = e.target.closest(".view-tab"); if (!b) return;
+    document.querySelectorAll(".view-tab").forEach((t) => t.classList.remove("active"));
+    b.classList.add("active");
+    const v = b.dataset.view;
+    document.getElementById("ordersView").style.display = v === "orders" ? "" : "none";
+    document.getElementById("membersView").style.display = v === "members" ? "" : "none";
+    document.getElementById("pageTitle").textContent = v === "members" ? "회원 관리" : "주문 관리";
+    if (v === "members") loadMembers();
+  });
+  document.getElementById("memberSearch").addEventListener("input", renderMembers);
 
   loadOrders();
   setInterval(loadOrders, 20000);
