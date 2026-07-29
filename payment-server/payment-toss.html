@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>토스페이먼츠 결제 · 동네사주카페</title>
+  <!-- 토스페이먼츠 V2 표준 SDK (결제위젯) -->
+  <script src="https://js.tosspayments.com/v2/standard"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --ink: #1C2333; --gold: #C9A24B; --gold-light: #E8D4A0;
+      --paper: #F7F3E8; --paper-2: #FDFBF5; --text-sub: #6B6252; --line: #E3D9C0;
+    }
+    body {
+      font-family: "Pretendard", "Noto Sans KR", "맑은 고딕", sans-serif;
+      background: var(--paper); max-width: 540px; margin: 0 auto; padding: 26px 16px 60px; color: var(--ink);
+    }
+    h2 { font-size: 17px; font-weight: 800; text-align: center; margin-bottom: 16px; }
+    .order-summary {
+      background: var(--paper-2); border: 1px solid var(--line); border-radius: 6px; padding: 16px 18px;
+      margin-bottom: 16px; font-size: 13.5px; border-top: 3px solid var(--gold);
+    }
+    .order-summary .amount { font-weight: 800; color: var(--ink); font-size: 18px; margin-top: 8px; }
+    #payment-method, #agreement { margin-bottom: 12px; }
+    .button {
+      width: 100%; padding: 15px; border: none; border-radius: 8px;
+      background: var(--ink); color: var(--gold-light); font-size: 15.5px; font-weight: 800; cursor: pointer;
+    }
+    .button:hover { opacity: 0.92; }
+    .button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .notice { margin-top: 12px; font-size: 11.5px; color: var(--text-sub); line-height: 1.6; text-align: center; }
+
+    /* 계좌이체(무통장 입금) 안내 */
+    .bank-divider { display: flex; align-items: center; gap: 12px; margin: 26px 0 14px; color: var(--text-sub); font-size: 12.5px; font-weight: 700; }
+    .bank-divider::before, .bank-divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+    .bank-box { background: var(--paper-2); border: 1.5px solid var(--gold); border-radius: 8px; padding: 18px; font-size: 13.5px; }
+    .bank-box h3 { font-size: 15px; margin-bottom: 4px; }
+    .bank-box .sub { font-size: 12px; color: var(--text-sub); margin-bottom: 12px; }
+    .bank-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px dashed var(--line); }
+    .bank-row:last-of-type { border-bottom: none; }
+    .bank-row .k { color: var(--text-sub); font-weight: 700; font-size: 12.5px; }
+    .bank-row .v { font-weight: 800; font-size: 14px; text-align: right; }
+    .bank-row .v.amount { color: #c0392b; font-size: 16px; }
+    .copy-btn { border: 1px solid var(--gold); background: #FBF4E2; color: var(--ink); border-radius: 5px; padding: 5px 10px; font-size: 11.5px; font-weight: 700; cursor: pointer; margin-left: 8px; }
+    .bank-note { margin-top: 12px; font-size: 12px; color: var(--text-sub); line-height: 1.6; background: #FBF7EC; border-radius: 6px; padding: 11px 13px; }
+  </style>
+</head>
+<body>
+  <h2>易 동네사주카페 결제</h2>
+  <div class="order-summary" id="orderSummary">주문 정보를 불러오는 중...</div>
+
+  <!-- 토스 결제위젯: 결제수단(카드·간편결제·계좌이체 등) + 약관 -->
+  <div id="payment-method"></div>
+  <div id="agreement"></div>
+  <button class="button" id="payment-button" disabled>결제 준비 중...</button>
+  <div class="notice" id="testNotice"></div>
+
+  <!-- 계좌이체(무통장 입금) 안내 -->
+  <div class="bank-divider">또는 계좌이체로 입금</div>
+  <div class="bank-box">
+    <h3>계좌이체 (무통장 입금)</h3>
+    <div class="sub">아래 계좌로 입금해 주시면, 확인 후 결과지를 보내드립니다.</div>
+    <div class="bank-row"><span class="k">은행</span><span class="v">토스뱅크</span></div>
+    <div class="bank-row"><span class="k">계좌번호</span><span><span class="v" id="acctNo">1002-6663-7130</span><button type="button" class="copy-btn" onclick="copyAccount()">복사</button></span></div>
+    <div class="bank-row"><span class="k">예금주</span><span class="v">살림허브</span></div>
+    <div class="bank-row"><span class="k">입금 금액</span><span class="v amount" id="bankAmount">-</span></div>
+    <div class="bank-note">
+      · <b>입금자명</b>은 주문자 성함과 <b>동일하게</b> 해주세요.<br>
+      · 입금이 확인되면 결과지를 <b>이메일/문자</b>로 보내드립니다.<br>
+      · 입금 후 확인이 늦어지면 채팅으로 알려주세요.
+    </div>
+  </div>
+
+  <script>
+    main();
+
+    function copyAccount() {
+      const acct = document.getElementById("acctNo").textContent.trim();
+      const done = () => { const b = event.target; const t = b.textContent; b.textContent = "복사됨"; setTimeout(() => b.textContent = t, 1200); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(acct).then(done).catch(() => alert("계좌번호: " + acct));
+      else alert("계좌번호: " + acct);
+    }
+
+    async function main() {
+      const params = new URLSearchParams(window.location.search);
+      const orderId = params.get("orderId");
+      const summaryEl = document.getElementById("orderSummary");
+      const button = document.getElementById("payment-button");
+      const testNotice = document.getElementById("testNotice");
+
+      if (!orderId) { summaryEl.textContent = "주문 정보가 없습니다. 주문서를 다시 작성해 주세요."; return; }
+
+      const orderRes = await fetch(`/api/orders/${orderId}`);
+      const orderData = await orderRes.json();
+      if (!orderData.success) { summaryEl.textContent = "주문 정보를 찾을 수 없습니다."; return; }
+      const order = orderData.order;
+
+      summaryEl.innerHTML =
+        `<strong>${order.orderName}</strong><br>주문자: ${order.customerName || "-"}` +
+        `<div class="amount">${order.amount.toLocaleString()}원</div>`;
+      document.getElementById("bankAmount").textContent = order.amount.toLocaleString() + "원";
+
+      // 클라이언트 키 조회 (없으면 카드결제는 준비중 안내, 계좌이체는 그대로 가능)
+      let clientKey = "";
+      try { const k = await fetch("/api/toss/client-key"); clientKey = (await k.json()).clientKey || ""; } catch (e) {}
+      if (!clientKey) {
+        button.textContent = "카드·간편결제 준비 중";
+        button.disabled = true;
+        testNotice.textContent = "카드·간편결제는 아직 준비 중이에요. 아래 계좌이체로 입금해 주세요.";
+        return;
+      }
+
+      try {
+        const tossPayments = TossPayments(clientKey);
+        const widgets = tossPayments.widgets({ customerKey: TossPayments.ANONYMOUS });
+
+        await widgets.setAmount({ currency: "KRW", value: Number(order.amount) });
+        await Promise.all([
+          widgets.renderPaymentMethods({ selector: "#payment-method", variantKey: "DEFAULT" }),
+          widgets.renderAgreement({ selector: "#agreement", variantKey: "AGREEMENT" }),
+        ]);
+
+        button.disabled = false;
+        button.textContent = `${order.amount.toLocaleString()}원 결제하기`;
+        if (String(clientKey).startsWith("test_")) {
+          testNotice.innerHTML = "테스트 환경입니다. 테스트 카드로 결제해보세요.<br>카드번호 4330-0000-0000-0005 / 유효기간·CVC·비밀번호는 아무 값";
+        }
+
+        button.addEventListener("click", async () => {
+          button.disabled = true;
+          try {
+            await widgets.requestPayment({
+              orderId: order.orderId,
+              orderName: order.orderName,
+              successUrl: window.location.origin + "/toss-success.html",
+              failUrl: window.location.origin + "/toss-fail.html",
+              customerEmail: order.customerEmail || undefined,
+              customerName: order.customerName || undefined,
+              customerMobilePhone: order.customerPhone ? order.customerPhone.replace(/\D/g, "") : undefined,
+            });
+          } catch (err) {
+            button.disabled = false;
+            button.textContent = `${order.amount.toLocaleString()}원 결제하기`;
+            if (err && err.code !== "USER_CANCEL") alert("결제 요청 중 오류가 발생했습니다: " + (err.message || err));
+          }
+        });
+      } catch (e) {
+        button.textContent = "결제창을 불러오지 못했어요";
+        button.disabled = true;
+        testNotice.textContent = "카드 결제 준비 중 오류가 있어요. 계좌이체로 입금해 주세요. (" + (e.message || e) + ")";
+      }
+    }
+  </script>
+</body>
+</html>
