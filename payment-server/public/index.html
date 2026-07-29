@@ -283,10 +283,9 @@
 
       <div class="form-row">
         <label>이름 <span class="hint">한글</span></label>
-        <div class="form-grid-2">
-          <input type="text" id="fName" placeholder="예: 김재진" />
-          <input type="text" id="fNameHanja" placeholder="한자명 (선택)" />
-        </div>
+        <input type="text" id="fName" placeholder="예: 김재진" />
+        <input type="hidden" id="fNameHanja" />
+        <div class="hanja-picker" id="fHanjaPicker"></div>
       </div>
 
       <div class="form-row">
@@ -356,10 +355,9 @@
 
         <div class="form-row">
           <label>이름 <span class="hint">한글</span></label>
-          <div class="form-grid-2">
-            <input type="text" id="pName" placeholder="예: 이수민" />
-            <input type="text" id="pNameHanja" placeholder="한자명 (선택)" />
-          </div>
+          <input type="text" id="pName" placeholder="예: 이수민" />
+          <input type="hidden" id="pNameHanja" />
+          <div class="hanja-picker" id="pHanjaPicker"></div>
         </div>
 
         <div class="form-row">
@@ -449,6 +447,20 @@
   </div>
 </div>
 
+<style>
+  .hanja-picker { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .hanja-hint { font-size:12px; color:#8a8477; }
+  .hanja-slot { position:relative; }
+  .hanja-chip { font-family:inherit; min-width:42px; padding:8px 12px; border:1.5px solid #E3D9C0; border-radius:8px; background:#FDFBF5; font-size:18px; font-weight:800; color:#1C2333; cursor:pointer; }
+  .hanja-chip.chosen { border-color:#C9A24B; background:#FBF4E2; }
+  .hanja-menu { position:absolute; z-index:50; top:calc(100% + 4px); left:0; min-width:220px; max-height:280px; overflow:auto; background:#fff; border:1px solid #E3D9C0; border-radius:8px; box-shadow:0 8px 24px rgba(28,35,51,.18); padding:4px; }
+  .hanja-opt { padding:9px 10px; border-radius:6px; cursor:pointer; font-size:14px; display:flex; align-items:baseline; gap:8px; }
+  .hanja-opt:hover { background:#FBF4E2; }
+  .hanja-opt b { font-size:19px; color:#8B2E2E; min-width:22px; }
+  .hanja-opt .hm { color:#6B6252; font-size:12.5px; }
+  .hanja-direct { color:#8B2E2E; font-weight:700; justify-content:center; }
+</style>
+<script src="/hanja-db.js"></script>
 <script>
   const ZODIAC_TABLE = ["쥐", "소", "호랑이", "토끼", "용", "뱀", "말", "양", "원숭이", "닭", "개", "돼지"];
   function calcZodiac(year) {
@@ -524,6 +536,8 @@
       document.getElementById("fName").value = loggedInUser.name || "";
       document.getElementById("fEmail").value = loggedInUser.email || "";
       document.getElementById("fPhone").value = loggedInUser.phone || "";
+      // 이름을 자동으로 채운 경우, 한자 선택기도 다시 그리도록 input 이벤트 발생
+      document.getElementById("fName").dispatchEvent(new Event("input"));
     }
     orderModal.classList.add("active");
   }
@@ -541,6 +555,68 @@
   }
   bindZodiac("fYear", "zodiacDisplay");
   bindZodiac("pYear", "partnerZodiacDisplay");
+
+  // ---- 한자 이름 선택기: 이름을 입력하면 글자별로 한자를 뜻과 함께 고를 수 있음 ----
+  function setupHanjaPicker(nameId, hiddenId, pickerId) {
+    const nameEl = document.getElementById(nameId);
+    const hidden = document.getElementById(hiddenId);
+    const picker = document.getElementById(pickerId);
+    if (!nameEl || !hidden || !picker) return;
+    let sel = [];
+    function chars() { return nameEl.value.trim().replace(/\s+/g, "").split(""); }
+    function updateHidden() {
+      const cs = chars();
+      hidden.value = sel.some(Boolean) ? cs.map((c, i) => sel[i] || c).join("") : "";
+    }
+    function closeMenus() { picker.querySelectorAll(".hanja-menu").forEach((m) => m.remove()); }
+    function openMenu(slot, ch, i) {
+      closeMenus();
+      const list = (window.HANJA_DB && window.HANJA_DB[ch]) || [];
+      const menu = document.createElement("div"); menu.className = "hanja-menu";
+      let html = `<div class="hanja-opt" data-h=""><b>${ch}</b><span class="hm">한글 그대로 (한자 없이)</span></div>`;
+      list.forEach((o) => { html += `<div class="hanja-opt" data-h="${o.h}"><b>${o.h}</b><span class="hm">${o.m}</span></div>`; });
+      html += `<div class="hanja-opt hanja-direct">✎ 직접 입력…</div>`;
+      menu.innerHTML = html;
+      menu.querySelectorAll(".hanja-opt").forEach((op) => {
+        op.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (op.classList.contains("hanja-direct")) {
+            const v = prompt(`'${ch}' 에 해당하는 한자를 직접 입력하세요`, "");
+            if (v != null) sel[i] = v.trim();
+          } else {
+            sel[i] = op.getAttribute("data-h");
+          }
+          render();
+        });
+      });
+      slot.appendChild(menu);
+    }
+    function render() {
+      const cs = chars();
+      if (sel.length !== cs.length) sel = cs.map((_, i) => sel[i] || "");
+      picker.innerHTML = "";
+      if (!cs.length) {
+        picker.innerHTML = `<span class="hanja-hint">이름을 입력하면 글자별로 한자를 뜻과 함께 고를 수 있어요 (선택)</span>`;
+        hidden.value = ""; return;
+      }
+      cs.forEach((ch, i) => {
+        const slot = document.createElement("span"); slot.className = "hanja-slot";
+        const chip = document.createElement("button");
+        chip.type = "button"; chip.className = "hanja-chip";
+        chip.textContent = sel[i] || ch;
+        if (sel[i]) chip.classList.add("chosen");
+        chip.addEventListener("click", (e) => { e.stopPropagation(); openMenu(slot, ch, i); });
+        slot.appendChild(chip);
+        picker.appendChild(slot);
+      });
+      updateHidden();
+    }
+    nameEl.addEventListener("input", () => { sel = []; render(); });
+    document.addEventListener("click", () => closeMenus());
+    render();
+  }
+  setupHanjaPicker("fName", "fNameHanja", "fHanjaPicker");
+  setupHanjaPicker("pName", "pNameHanja", "pHanjaPicker");
 
   orderSubmitBtn.addEventListener("click", async () => {
     const name = document.getElementById("fName").value.trim();
