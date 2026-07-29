@@ -1,0 +1,8 @@
+node_modules
+.env
+*.zip
+_preview
+generated_pdfs/*.pdf
+**/__pycache__
+*.bak
+*.bak.py

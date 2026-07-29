@@ -25,8 +25,9 @@ COPY . .
 
 ENV NODE_ENV=production
 ENV PYTHON_BIN=python3
+# 주문/회원/PDF 를 영구 저장할 경로 (Railway Volume 을 /data 에 연결)
 ENV DATA_DIR=/data
 
+# Railway 가 주입하는 PORT 를 server.js 가 사용 (process.env.PORT)
 EXPOSE 3000
 CMD ["node", "server.js"]
-

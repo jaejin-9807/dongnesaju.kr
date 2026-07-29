@@ -1,0 +1,10 @@
+node_modules
+.git
+.env
+*.zip
+_preview
+generated_pdfs/*.pdf
+**/__pycache__
+*.bak
+*.bak.py
+saju_engine/assets/cover_a4.jpg

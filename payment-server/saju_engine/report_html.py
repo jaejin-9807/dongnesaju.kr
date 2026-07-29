@@ -187,6 +187,30 @@ def _section_block(title, body, footnote=True):
     return (f"<div class='section-title'>{esc(title)}</div>{_p(body)}{fn}")
 
 
+def _birth_line_str(b, data, calendar_type, time_str):
+    """표지에 표시할 생년월일 문구.
+    음력 입력이면 '음력 원본 + (양력 변환) 기준'을 함께 보여줘, 날짜가 바뀐 게 아니라
+    사주 계산을 위해 양력으로 환산했음을 분명히 한다."""
+    lunar = (data or {}).get("birthLunar")
+    if lunar:
+        leap = "(윤달)" if lunar.get("isLeap") else ""
+        return (f"음력 {lunar.get('year','')}년 {lunar.get('month','')}월 {lunar.get('day','')}일{leap}"
+                f" · 양력 {b.get('year','')}.{b.get('month','')}.{b.get('day','')} 환산 · {time_str}")
+    return f"{b.get('year','')}년 {b.get('month','')}월 {b.get('day','')}일 ({calendar_type}) · {time_str}"
+
+
+def _life_stage(age):
+    """나이대를 20~90대로 구분해, 결과지 문구를 그 시기의 삶에 맞게 조정한다."""
+    a = int(age or 40)
+    if a < 30:   return {"key": "20", "band": "20대", "senior": False}
+    if a < 40:   return {"key": "30", "band": "30대", "senior": False}
+    if a < 50:   return {"key": "40", "band": "40대", "senior": False}
+    if a < 60:   return {"key": "50", "band": "50대", "senior": False}
+    if a < 70:   return {"key": "60", "band": "60대", "senior": True}
+    if a < 80:   return {"key": "70", "band": "70대", "senior": True}
+    return {"key": "80", "band": "80대 이상", "senior": True}
+
+
 def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
     txt = _txt_factory(data)
     b = data.get("birth", {})
@@ -230,6 +254,12 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
     cur_daeun_pillar = daeun_pillars[cur_idx] if 0 <= cur_idx < len(daeun_pillars) else "-"
     cur_daeun_age = start_ages[cur_idx] if 0 <= cur_idx < len(start_ages) else None
 
+    # ---- 나이대 프레이밍 (20~90대) : 과거형·부적절 문구 방지 + 그 시기 삶에 맞춤 ----
+    _stage = _life_stage(cur_age)
+    _sk = _stage["key"]           # "20"~"80"
+    is_senior = _stage["senior"]  # 60대 이상
+    _is_couple = _sk in ("50", "60", "70", "80")   # 배우자/가정 중심(미혼보다 기혼 가능성)
+
     # ---- 주의/기회 시기(월) ----
     y = yongsin
     good_set = {y.get("yongsin"), y.get("huisin")}
@@ -242,7 +272,7 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
         time_str = "출생시간 미상"
     else:
         time_str = f"{int(b.get('hour', 0)):02d}시 {int(b.get('minute', 0)):02d}분"
-    birth_line = f"{b.get('year','')}년 {b.get('month','')}월 {b.get('day','')}일 ({calendar_type}) · {time_str}"
+    birth_line = _birth_line_str(b, data, calendar_type, time_str)
 
     reg = ChapterRegistry()
     body_parts = []
@@ -346,6 +376,16 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
         f"<span class='badge' style='background:{OHENG_COLORS.get(k,'#eee')}22;color:{OHENG_COLORS.get(k,'#333')};border:0.6pt solid {OHENG_COLORS.get(k,'#ccc')}'>{esc(k)} {v}개</span>"
         for k, v in oheng_dist.items())
     body_parts.append(f"<div class='badge-row'>{badges}</div>")
+    body_parts.append(
+        "<div class='card'><b>오행(五行)이란?</b> 세상의 기운을 "
+        "<b>목(木·나무)·화(火·불)·토(土·흙)·금(金·쇠)·수(水·물)</b> 다섯 가지로 나눈 것으로, "
+        "내 사주에 이 기운들이 얼마나 담겨 있는지가 성격과 운의 바탕이 됩니다.<br><br>"
+        "· <b>상생(相生)</b> — 서로 <b>도와주는</b> 관계예요. 목→화→토→금→수→목 순서로 앞의 기운이 뒤의 기운을 살려줍니다. "
+        "(그림의 <b>파란 화살표</b>)<br>"
+        "· <b>상극(相剋)</b> — 서로 <b>억누르는</b> 관계예요. 한쪽이 다른 쪽을 눌러 균형을 잡아줍니다. "
+        "(그림의 <b>빨간 화살표</b>)<br><br>"
+        "상생이 잘 돌면 기운이 순조롭고, 상극이 지나치면 긴장·마찰이 생기기 쉬워요. "
+        "그래서 <b>부족한 기운을 채우고 넘치는 기운을 다스려 균형</b>을 맞추는 것이 핵심입니다.</div>")
     _strong = most_oheng or "-"
     _missing_str = ", ".join(missing) if missing else "없음"
     if chart_paths.get('oheng_bar'):
@@ -393,46 +433,99 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
     if chart_paths.get("life_curve"):
         body_parts.append(f"<div class='chart-wrap'><img src='{chart_paths['life_curve']}' style='width:100%'/>"
                           "<div class='chart-cap'>나이에 따른 운세 흐름 — 높을수록 기운이 좋은 시기</div></div>")
-    _sub("인생의 상승기와 정체기")
-    if _best_i >= 0:
-        ba = _ds["ages"][_best_i]; wa = _ds["ages"][_worst_i]
-        body_parts.append(_grid2("기운이 오르는 상승기", f"{ba}세~{ba+9}세", "숨 고르는 정체기", f"{wa}세~{wa+9}세"))
+    # 현재·앞으로의 대운 중심 (지나온 과거를 '좋았던 때'로 부각하지 않는다)
+    _fut_idxs = [i for i in range(len(_ds["ages"])) if _ds["ages"][i] + 9 >= cur_age]
+    _bf_i = (max(_fut_idxs, key=lambda k: _ds["scores"][k]) if _fut_idxs else _best_i)
+    _bfa = _ds["ages"][_bf_i] if _bf_i >= 0 else None
+
+    _sub("앞으로 기운이 오르는 시기")
+    if _bfa is not None:
+        if _bfa <= cur_age <= _bfa + 9:
+            body_parts.append(_p(f"지금 지나고 계신 <b>{_bfa}세~{_bfa+9}세</b> 흐름이 앞으로 중 기운이 가장 좋은 시기입니다. "
+                                 "그동안 쌓아 온 경험과 내공을 바탕으로, 지금이야말로 안정과 보람을 함께 누리기 좋은 때입니다."))
+        else:
+            body_parts.append(_p(f"앞으로는 <b>{_bfa}세~{_bfa+9}세</b> 무렵에 기운이 한 번 더 오릅니다. "
+                                 "그 시기를 향해 지금부터 건강과 관계를 잘 챙겨 두면 좋습니다."))
     body_parts.append(_p(txt("p2_상승정체", txt("대운세운해설"))))
-    _sub("중요한 변화가 시작되는 시기")
-    if _next_change is not None:
-        body_parts.append(_p(f"다음 큰 흐름(대운)은 {_next_change}세 무렵부터 시작됩니다. 이 전후로 환경·생각·관계에 변화가 오기 쉬우니 미리 준비해 두면 좋습니다."))
+    _sub("앞으로 다가오는 변화의 시기")
+    if _next_change is not None and _next_change >= cur_age:
+        body_parts.append(_p(f"다음 큰 흐름(대운)은 <b>{_next_change}세</b> 무렵부터 시작됩니다. 이 전후로 환경·마음·관계에 변화가 오기 쉬우니 미리 마음의 준비를 해 두면 한결 편안합니다."))
     else:
-        body_parts.append(_p("지금의 큰 흐름이 당분간 이어집니다. 급격한 변화보다는 지금 자리에서 실력을 다지는 시기입니다."))
-    _sub("적극적으로 움직이면 좋은 시기")
+        body_parts.append(_p("지금의 큰 흐름이 당분간 이어집니다. 급격한 변화보다는 지금 자리에서 몸과 마음을 편안히 다지는 시기입니다."))
+    _sub("올해 흐름 — 좋은 시기와 조심할 시기")
     if chart_paths.get("daeun_bars"):
         body_parts.append(f"<div class='chart-wrap'><img src='{chart_paths['daeun_bars']}' style='width:100%'/>"
-                          "<div class='chart-cap'>10년 단위 대운별 운세 지수</div></div>")
-    body_parts.append(_p(f"{report_year}년에는 {_op}에 기운이 밝습니다. 새로운 시작·도전·제안은 이 시기에 배치하면 힘을 받습니다."))
-    _sub("신중하게 판단해야 하는 시기")
-    body_parts.append(_p(f"{report_year}년에는 {_ca}에 변화가 크게 옵니다. 큰 결정은 한 번 더 점검하고, 무리한 확장은 피하는 편이 좋습니다."))
-    _sub("인생의 황금기와 준비 방법")
-    if _best_i >= 0:
-        ba = _ds["ages"][_best_i]
-        body_parts.append(f"<div class='callout'><div class='callout-label'>인생의 황금기: {ba}세~{ba+9}세</div>"
-                          f"<div>이 시기에 성과가 크게 나기 쉽습니다. 그전까지 실력·인맥·자금을 차근차근 쌓아 두면, 황금기에 더 크게 도약할 수 있습니다.</div></div>")
+                          "<div class='chart-cap'>10년 단위 대운 지수 — 회색은 지나온 시기, 색이 진한 쪽이 지금부터의 흐름입니다</div></div>")
+    body_parts.append(_p(f"{report_year}년에는 {_op}에 기운이 밝습니다. 좋은 일·모임·중요한 결정은 이 시기에 맞추면 힘을 받습니다."))
+    body_parts.append(_p(f"{report_year}년에는 {_ca}에 변화가 크게 오니, 큰 결정과 무리한 일은 한 박자 늦추고 건강을 특히 살피세요."))
+    _sub("지금 나이에 맞는 삶의 방향")
+    if _sk in ("20", "30"):
+        body_parts.append("<div class='callout'><div class='callout-label'>지금은 '씨앗을 뿌리는' 시기</div>"
+                          "<div>지금의 경험과 도전은 훗날 큰 나무가 될 씨앗입니다. 다양한 시도 속에서 나만의 강점을 찾고, 좋은 습관과 사람을 곁에 두면 앞으로의 전성기가 훨씬 든든해집니다.</div></div>")
+        if _bfa is not None:
+            body_parts.append(_p(f"특히 <b>{_bfa}세~{_bfa+9}세</b> 무렵 기운이 크게 오르니, 그 시기를 향해 지금부터 실력과 관계를 쌓아 두세요."))
+    elif _sk in ("40", "50"):
+        body_parts.append("<div class='callout'><div class='callout-label'>지금은 '열매를 키우는' 시기</div>"
+                          "<div>그동안 쌓아 온 노력이 성과로 무르익는 때입니다. 무리한 확장보다 잘하는 것에 깊이를 더하고, 건강과 가정을 함께 챙기면 안정과 성취를 같이 얻을 수 있습니다.</div></div>")
+        if _bfa is not None:
+            body_parts.append(_p(f"앞으로 <b>{_bfa}세~{_bfa+9}세</b>에 기운이 오르니, 그 시기에 중요한 결실을 맞출 수 있도록 준비해 두세요."))
+    else:
+        body_parts.append("<div class='callout'><div class='callout-label'>지금은 '거두고 나누는' 시기</div>"
+                          "<div>인생의 큰 산은 이미 여러 번 넘어오셨습니다. 지금부터는 새로 크게 벌이기보다, "
+                          "그동안 쌓은 것을 건강하게 지키고 가족·이웃과 나누며 마음의 여유를 누리는 흐름이 잘 맞습니다.</div></div>")
     body_parts.append(_p(txt("p2_황금기", txt("평생운세총평"))))
 
     # ===================== PART 3 =====================
-    reg.part("PART 3. 연애 · 결혼 · 배우자운")
-    body_parts.append(_chapter_head(reg, "PART 3", "연애 · 결혼 · 배우자운",
-                                    "나의 연애 성향과 인연의 시기를 살펴봅니다.", new_page=True))
-    _sub("연애할 때 나타나는 성향")
-    body_parts.append(_p(txt("p3_성향", txt("연애운인연운"))))
-    _sub("나와 잘 맞는 상대의 특징")
-    body_parts.append(_p(txt("p3_이상형", txt("결혼운배우자운"))))
-    _sub("연애와 결혼운이 강해지는 시기")
-    body_parts.append(_p(f"{report_year}년에는 {_op}에 인연의 기운이 밝습니다. 소개·모임·새로운 만남에 마음을 열어 보세요."))
-    _sub("관계에서 주의해야 할 갈등 요소")
-    body_parts.append(_p(txt("p3_갈등", txt("대인관계운",
-        "서운함을 쌓아 두었다가 한꺼번에 터뜨리면 갈등이 커집니다. 작은 불편은 그때그때 부드럽게 표현하는 편이 좋습니다."))))
-    _sub("좋은 인연을 유지하는 방법")
-    body_parts.append(_p(txt("p3_유지",
-        "상대가 힘을 얻는 부분을 이해하고 배려하는 대화를 나누면 관계가 오래 갑니다. 고마움은 자주, 구체적으로 표현하세요.")))
+    if is_senior:
+        # 60대 이상: 새 연애보다 부부·동반자·가족 관계 중심
+        reg.part("PART 3. 부부 · 가족 · 인연운")
+        body_parts.append(_chapter_head(reg, "PART 3", "부부 · 가족 · 인연운",
+                                        "배우자·자녀와의 인연, 가족 관계의 결을 살펴봅니다.", new_page=True))
+        _sub("관계에서 나타나는 나의 성향")
+        body_parts.append(_p(txt("p3_성향", txt("연애운인연운"))))
+        _sub("배우자·가족과의 인연의 특징")
+        body_parts.append(_p(txt("p3_이상형", txt("결혼운배우자운"))))
+        _sub("가정에 화목한 기운이 도는 시기")
+        body_parts.append(_p(f"{report_year}년에는 {_op}에 가족의 좋은 소식과 화목한 기운이 따르기 쉽습니다. 이 시기에 가족 모임이나 뜻깊은 행사를 두면 정이 더 깊어집니다."))
+        _sub("가족 관계에서 주의할 점")
+        body_parts.append(_p(txt("p3_갈등", txt("대인관계운",
+            "서운함을 마음에 담아 두기보다, 작은 고마움과 불편을 그때그때 부드럽게 나누면 가족 사이가 더 편안해집니다."))))
+        _sub("정을 오래 지키는 방법")
+        body_parts.append(_p("자녀·손주·배우자에게 '고맙다', '수고했다'는 말을 자주 건네실수록 관계의 온기가 오래 갑니다. 베풀고 나누는 마음이 곧 노년의 큰 복입니다."))
+    elif _is_couple:
+        # 40~50대: 배우자·가정운 중심
+        reg.part("PART 3. 배우자 · 가정 · 인연운")
+        body_parts.append(_chapter_head(reg, "PART 3", "배우자 · 가정 · 인연운",
+                                        "배우자와의 관계와 가정운의 흐름을 살펴봅니다.", new_page=True))
+        _sub("관계에서 나타나는 나의 성향")
+        body_parts.append(_p(txt("p3_성향", txt("연애운인연운"))))
+        _sub("배우자와 잘 맞는 부분과 보완할 부분")
+        body_parts.append(_p(txt("p3_이상형", txt("결혼운배우자운"))))
+        _sub("가정운이 좋아지는 시기")
+        body_parts.append(_p(f"{report_year}년에는 {_op}에 부부·가정에 화목한 기운이 밝습니다. 함께하는 시간을 늘리면 관계가 더 단단해집니다."))
+        _sub("관계에서 주의해야 할 갈등 요소")
+        body_parts.append(_p(txt("p3_갈등", txt("대인관계운",
+            "서운함을 쌓아 두었다가 한꺼번에 터뜨리면 갈등이 커집니다. 작은 불편은 그때그때 부드럽게 표현하는 편이 좋습니다."))))
+        _sub("좋은 관계를 오래 유지하는 방법")
+        body_parts.append(_p(txt("p3_유지",
+            "상대가 힘을 얻는 부분을 이해하고 배려하는 대화를 나누면 관계가 오래 갑니다. 고마움은 자주, 구체적으로 표현하세요.")))
+    else:
+        # 20~40대: 연애·결혼운 중심
+        reg.part("PART 3. 연애 · 결혼 · 배우자운")
+        body_parts.append(_chapter_head(reg, "PART 3", "연애 · 결혼 · 배우자운",
+                                        "나의 연애 성향과 인연의 시기를 살펴봅니다.", new_page=True))
+        _sub("연애할 때 나타나는 성향")
+        body_parts.append(_p(txt("p3_성향", txt("연애운인연운"))))
+        _sub("나와 잘 맞는 상대의 특징")
+        body_parts.append(_p(txt("p3_이상형", txt("결혼운배우자운"))))
+        _sub("연애와 결혼운이 강해지는 시기")
+        body_parts.append(_p(f"{report_year}년에는 {_op}에 인연의 기운이 밝습니다. 소개·모임·새로운 만남에 마음을 열어 보세요."))
+        _sub("관계에서 주의해야 할 갈등 요소")
+        body_parts.append(_p(txt("p3_갈등", txt("대인관계운",
+            "서운함을 쌓아 두었다가 한꺼번에 터뜨리면 갈등이 커집니다. 작은 불편은 그때그때 부드럽게 표현하는 편이 좋습니다."))))
+        _sub("좋은 인연을 유지하는 방법")
+        body_parts.append(_p(txt("p3_유지",
+            "상대가 힘을 얻는 부분을 이해하고 배려하는 대화를 나누면 관계가 오래 갑니다. 고마움은 자주, 구체적으로 표현하세요.")))
 
     # ===================== PART 4 =====================
     reg.part("PART 4. 재물운과 경제 흐름")
@@ -451,22 +544,73 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
     body_parts.append(_p(txt("p4_활용",
         "수입의 일정 비율을 먼저 떼어 저축·투자로 자동 배분하고, 큰 결정은 기회 달에 몰아서 처리하면 재물운을 안정적으로 살릴 수 있습니다.")))
 
-    # ===================== PART 5 =====================
-    reg.part("PART 5. 직업 · 사업 · 성공운")
-    body_parts.append(_chapter_head(reg, "PART 5", "직업 · 사업 · 성공운",
-                                    "나에게 맞는 일과 성공의 방향을 살펴봅니다.", new_page=True))
-    _sub("적성과 강점을 살릴 수 있는 분야")
-    body_parts.append(_p(txt("p5_적성", txt("직장운이직운승진운"))))
-    _sub("직장과 사업 중 나에게 유리한 방향")
-    body_parts.append(_p(txt("p5_방향", txt("사업운창업운"))))
-    _sub("취업 · 이직 · 승진운의 흐름")
-    body_parts.append(_p(txt("p5_승진", txt("문서운",
-        f"{report_year}년에는 {_op}에 합격·발탁·승진의 기운이 오릅니다. 준비한 것을 이 시기에 제출·발표하면 좋습니다."))))
-    _sub("창업 · 확장 · 계약에 유리한 시기")
-    body_parts.append(_p(f"창업·확장·중요 계약은 {_op}에 배치하면 힘을 받습니다. 반대로 {_ca}에는 큰 확장을 미루는 편이 안전합니다."))
-    _sub("성공 가능성을 높이는 현실적인 전략")
-    body_parts.append(_p(txt("p5_전략",
-        "한 분야에서 확실한 강점을 만든 뒤, 좋은 시기에 과감히 승부를 거는 전략이 잘 맞습니다. 혼자보다 귀인과 함께할 때 성과가 커집니다.")))
+    # ===================== PART 5 (나이대별 맞춤) =====================
+    if _sk == "20":
+        reg.part("PART 5. 진로 · 취업 · 성장운")
+        body_parts.append(_chapter_head(reg, "PART 5", "진로 · 취업 · 성장운",
+                                        "나에게 맞는 길과 첫 도약의 시기를 살펴봅니다.", new_page=True))
+        _sub("적성과 강점을 살릴 수 있는 분야")
+        body_parts.append(_p(txt("p5_적성", txt("직장운이직운승진운"))))
+        _sub("진로 방향과 나에게 유리한 길")
+        body_parts.append(_p(txt("p5_방향", txt("사업운창업운"))))
+        _sub("취업 · 시험 · 합격운의 흐름")
+        body_parts.append(_p(f"{report_year}년에는 {_op}에 합격·발탁의 기운이 오릅니다. 시험·지원·발표는 이 시기에 맞추면 좋고, {_ca}에는 서두르지 말고 실력을 다지세요."))
+        _sub("성장 가능성을 높이는 전략")
+        body_parts.append(_p("지금은 넓게 경험하며 나만의 강점을 만드는 시기입니다. 한 분야에 깊이를 더해 두면 30대에 크게 도약할 수 있습니다. 조급함보다 방향을 정하는 것이 먼저입니다."))
+    elif _sk in ("30", "40"):
+        reg.part("PART 5. 직업 · 사업 · 성공운")
+        body_parts.append(_chapter_head(reg, "PART 5", "직업 · 사업 · 성공운",
+                                        "나에게 맞는 일과 성공의 방향을 살펴봅니다.", new_page=True))
+        _sub("적성과 강점을 살릴 수 있는 분야")
+        body_parts.append(_p(txt("p5_적성", txt("직장운이직운승진운"))))
+        _sub("직장과 사업 중 나에게 유리한 방향")
+        body_parts.append(_p(txt("p5_방향", txt("사업운창업운"))))
+        _sub("이직 · 승진 · 성취운의 흐름")
+        body_parts.append(_p(txt("p5_승진", txt("문서운",
+            f"{report_year}년에는 {_op}에 발탁·승진·성취의 기운이 오릅니다. 준비한 것을 이 시기에 제출·발표하면 좋습니다."))))
+        _sub("창업 · 확장 · 계약에 유리한 시기")
+        body_parts.append(_p(f"창업·확장·중요 계약은 {_op}에 배치하면 힘을 받습니다. 반대로 {_ca}에는 큰 확장을 미루는 편이 안전합니다."))
+        _sub("성공 가능성을 높이는 현실적인 전략")
+        body_parts.append(_p(txt("p5_전략",
+            "한 분야에서 확실한 강점을 만든 뒤, 좋은 시기에 과감히 승부를 거는 전략이 잘 맞습니다. 혼자보다 귀인과 함께할 때 성과가 커집니다.")))
+    elif _sk == "50":
+        reg.part("PART 5. 직업 · 자산 · 인생 2막")
+        body_parts.append(_chapter_head(reg, "PART 5", "직업 · 자산 · 인생 2막",
+                                        "지금의 안정과 다음 인생 2막 준비를 살펴봅니다.", new_page=True))
+        _sub("경험과 강점을 살릴 수 있는 분야")
+        body_parts.append(_p(txt("p5_적성", txt("직장운이직운승진운"))))
+        _sub("자리 지키기와 인생 2막 사이의 방향")
+        body_parts.append(_p("지금까지 쌓은 경력과 인맥이 가장 큰 자산인 시기입니다. 무리한 새 도전보다, 잘하시던 일에 깊이를 더하거나 그 경험을 살린 제2의 일(자문·강의·소규모 사업 등)을 천천히 준비하기 좋습니다."))
+        _sub("성취 · 자산이 오르는 시기")
+        body_parts.append(_p(f"{report_year}년에는 {_op}에 성취와 재물의 기운이 오릅니다. 노후 자산·연금·부동산은 이 시기에 점검하고, {_ca}에는 큰 계약·투자를 서두르지 마세요."))
+        _sub("50대의 현명한 전략")
+        body_parts.append(_p("건강을 챙기며 자산을 지키고, 다음 20~30년을 내다보며 씀씀이와 관계를 정돈하는 것이 지금의 가장 큰 성공입니다. 조급한 확장보다 안정과 준비가 힘이 됩니다."))
+    elif _sk == "60":
+        reg.part("PART 5. 사회활동 · 명예 · 자산운")
+        body_parts.append(_chapter_head(reg, "PART 5", "사회활동 · 명예 · 자산운",
+                                        "은퇴 이후의 활동과 보람, 자산 관리를 살펴봅니다.", new_page=True))
+        _sub("경륜을 살릴 수 있는 활동")
+        body_parts.append(_p(txt("p5_적성", txt("직장운이직운승진운"))))
+        _sub("보람과 인정을 얻기 좋은 방향")
+        body_parts.append(_p("평생 쌓아 온 경험은 그 자체로 큰 자산입니다. 자문·조언·취미·봉사처럼 무리하지 않으면서 인정받는 활동에서 특히 보람이 큽니다. 새로 크게 벌이기보다, 잘하시던 일을 여유 있게 이어가는 편이 잘 맞습니다."))
+        _sub("명예와 인정운의 흐름")
+        body_parts.append(_p(f"{report_year}년에는 {_op}에 사람들의 인정과 좋은 소식이 따르기 쉽습니다. 가족 경사나 뜻깊은 모임도 이 시기에 잘 어울립니다."))
+        _sub("자산 · 문서를 지키고 정리할 시기")
+        body_parts.append(_p(f"부동산·상속·보험·계약 같은 문서 일은 {_op}에 차분히 정리하면 좋고, {_ca}에는 큰 계약·보증·투자를 서두르지 마세요. 서류는 꼭 전문가(법무사·세무사) 검토를 받고, 구두 약속보다 문서로 남기세요."))
+        _sub("지금 나이에 맞는 현명한 전략")
+        body_parts.append(_p("건강을 최우선으로 두고, 가진 것을 지키며 가족·이웃과 나누는 것이 지금 시기의 가장 큰 성공입니다. 무리한 확장보다 마음의 평안과 관계의 온기를 챙기실 때 삶이 더욱 넉넉해집니다."))
+    else:  # 70, 80
+        reg.part("PART 5. 건강 · 여가 · 나눔운")
+        body_parts.append(_chapter_head(reg, "PART 5", "건강 · 여가 · 나눔운",
+                                        "건강하게 누리고 나누며 보내는 흐름을 살펴봅니다.", new_page=True))
+        _sub("무리하지 않고 이어가기 좋은 활동")
+        body_parts.append(_p("몸과 마음이 편안한 취미·산책·모임처럼 즐거움을 주는 활동이 가장 잘 맞습니다. 오랜 경험에서 나오는 지혜를 가족과 이웃에게 들려주시는 것만으로도 큰 나눔이 됩니다."))
+        _sub("좋은 기운과 좋은 소식이 따르는 시기")
+        body_parts.append(_p(f"{report_year}년에는 {_op}에 반가운 소식과 화목한 기운이 따르기 쉽습니다. 가족 경사나 뜻깊은 만남을 이 시기에 두면 더욱 좋습니다."))
+        _sub("자산 · 문서를 지키고 물려줄 준비")
+        body_parts.append(_p(f"상속·유산·보험·부동산 같은 문서 일은 서두르지 말고 {_op}에 가족과 함께 차분히 정리하세요. 큰 결정은 반드시 전문가(법무사·세무사) 검토를 받고 문서로 남기시는 것이 안전합니다."))
+        _sub("지금 시기의 가장 큰 복")
+        body_parts.append(_p("건강과 마음의 평안, 그리고 가족·이웃과 나누는 정이 지금 시기의 가장 큰 복입니다. 그동안 잘 걸어오신 삶 자체가 충분히 훌륭하니, 이제는 편안히 누리셔도 됩니다."))
 
     # ===================== PART 6 =====================
     reg.part("PART 6. 건강과 생활관리")
@@ -572,6 +716,18 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
     if _next_change is not None:
         body_parts.append(_p(f"가장 큰 전환점은 {_next_change}세 무렵 시작되는 대운입니다. 그 전에 실력·자금·관계를 준비해 두면 전환기를 기회로 바꿀 수 있습니다."))
     body_parts.append(_p(txt("p10_전환", txt("평생운세총평"))))
+
+    # ===================== 맺음말 (따뜻한 위로·응원) =====================
+    _gname = esc(plain(gyeokguk.get("name", "")))
+    body_parts.append(_chapter_head(reg, "맺음말", "마지막으로 드리는 말", new_page=True))
+    body_parts.append(f"<div class='callout' style=\"border-left-color:{TOKENS['seal']};background:#FBEEE6;\">"
+                      f"<div class='callout-label' style=\"color:{TOKENS['seal']};\">{esc(customer_name)} 님께</div>"
+                      f"<div>{esc(customer_name)} 님은 <b>{_gname}</b>의 좋은 그릇을 타고나셨습니다. "
+                      "지나온 길에 힘든 고비도 있었겠지만, 그 시간을 묵묵히 견뎌 오신 것만으로 이미 큰 힘을 지니고 계십니다. "
+                      "사주는 정해진 운명을 못 박아 두는 것이 아니라, 나의 결을 이해하고 좋은 시기에 힘을 실어 더 나은 선택을 하도록 돕는 지도와 같습니다.</div></div>")
+    body_parts.append(_p("이 리포트의 흐름을 참고하시되, 결국 삶을 만들어 가는 것은 오늘 하루의 마음과 선택입니다. "
+                         "좋은 시기에는 용기를 내고, 조심할 시기에는 잠시 숨을 고르며, 곁의 소중한 사람들과 온기를 나누시길 바랍니다. "
+                         "이 글이 마음의 갈피를 잡고 한 걸음 내딛는 데 작은 등불이 되었으면 합니다. 앞날에 늘 건강과 평안이 함께하시길 진심으로 응원합니다."))
 
     # ===================== 26. 용어사전 =====================
     reg.part("부록")
@@ -685,7 +841,7 @@ def build_teaser_html(data: dict, chart_paths: dict, meta: dict) -> str:
         time_str = "출생시간 미상"
     else:
         time_str = f"{int(b.get('hour', 0)):02d}시 {int(b.get('minute', 0)):02d}분"
-    birth_line = f"{b.get('year','')}년 {b.get('month','')}월 {b.get('day','')}일 ({calendar_type}) · {time_str}"
+    birth_line = _birth_line_str(b, data, calendar_type, time_str)
 
     this_month = _dt.datetime.now().month
     wm = next((w for w in wolun if int(w.get("month", 0)) == this_month), (wolun[0] if wolun else None))

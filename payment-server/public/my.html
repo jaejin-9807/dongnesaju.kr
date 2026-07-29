@@ -132,7 +132,7 @@
   function payBlock(o) {
     return `
       <div class="btn-row">
-        <button class="btn btn-primary" onclick="location.href='/select-payment.html?orderId=${o.orderId}'">결제하기</button>
+        <button class="btn btn-primary" onclick="location.href='/payment-toss.html?orderId=${o.orderId}'">결제하기</button>
         <button class="btn btn-outline" onclick="cancelOrder('${o.orderId}')">주문 취소</button>
       </div>`;
   }

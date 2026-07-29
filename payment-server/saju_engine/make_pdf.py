@@ -101,7 +101,7 @@ def _build_charts(data, tmp_dir):
         cp["life_curve"] = uri("life.png")
         labels10 = [f"{a}세\n{p}" for a, p in zip(ds["ages"], ds["pillars"])]
         charts.make_fortune_bars(labels10, ds["scores"], _("daeun_bars.png"),
-                                 title="10년 단위 대운 운세 지수")
+                                 title="10년 단위 대운 운세 지수", focus_from=ds.get("cur_idx"))
         cp["daeun_bars"] = uri("daeun_bars.png")
 
     if data.get("wolun"):

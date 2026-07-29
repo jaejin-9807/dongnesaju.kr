@@ -423,12 +423,16 @@ app.get("/api/admin/orders/:orderId/pdf", requireAdmin, (req, res) => {
   if (!order || !order.pdfPath) {
     return res.status(404).json({ success: false, message: "결과지가 아직 준비되지 않았습니다." });
   }
+  const fs2 = require("fs");
+  if (!fs2.existsSync(order.pdfPath)) {
+    return res.status(404).json({ success: false, message: "결과지 파일이 없습니다. '운세풀이 즉시생성'으로 다시 만들어 주세요. (예전 파일이 저장공간 초기화로 삭제된 경우입니다)" });
+  }
   const meta = buildPdfMeta(order);
   const filename = order.pdfFilename ||
     (sanitizeFilename(`${meta.customerName}_${meta.reportType}_${meta.reportYear}`) + ".pdf");
   res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
   res.setHeader("Content-Type", "application/pdf");
-  res.sendFile(order.pdfPath);
+  res.sendFile(order.pdfPath, (err) => { if (err && !res.headersSent) res.status(500).json({ success: false, message: "파일 전송 실패: " + err.message }); });
 });
 
 // ---------------------------------------------------------------

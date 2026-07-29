@@ -20,7 +20,7 @@ const fs = require("fs");
 const { sendOwnerNotification, sendOwnerKakaoAlert } = require("./mailer");
 const orderStore = require("./orderStore");
 
-const PDF_OUTPUT_DIR = path.join(__dirname, "generated_pdfs");
+const PDF_OUTPUT_DIR = path.join(process.env.DATA_DIR || __dirname, "generated_pdfs");
 if (!fs.existsSync(PDF_OUTPUT_DIR)) fs.mkdirSync(PDF_OUTPUT_DIR, { recursive: true });
 
 const WAIT_MS = 1000 * 60 * 60 * 2; // 2시간

@@ -109,14 +109,15 @@ def make_oheng_dashboard(oheng_dist: dict, out_path: str):
 def make_sipseong_chart(sipseong: dict, out_path: str):
     _ensure_font()
     order = ["연간", "월간", "일간", "시간"]; labels = ["연주", "월주", "일주", "시주"]
-    fig, ax = plt.subplots(figsize=(8.6, 2.6), dpi=150); fig.patch.set_alpha(0)
+    # 글자가 잘 보이도록 원과 폰트를 크게 (어르신 가독성)
+    fig, ax = plt.subplots(figsize=(9.8, 3.5), dpi=170); fig.patch.set_alpha(0)
     ax.set_xlim(0, 4); ax.set_ylim(0, 1); ax.set_aspect("equal"); ax.axis("off")
     for i, key in enumerate(order):
         val = sipseong.get(key, ""); sv = val.split("(")[0].strip() if "(" in val else val
-        x = i + 0.5; fs = 10.5 if len(sv) <= 3 else 8.5
-        ax.add_patch(plt.Circle((x, 0.55), 0.32, color=SEAL, alpha=0.86, zorder=2, ec="#7A1F19", lw=1.4))
-        ax.text(x, 0.55, sv, ha="center", va="center", fontsize=fs, fontweight="bold", color="white", zorder=3)
-        ax.text(x, 0.06, labels[i], ha="center", va="center", fontsize=10.5, fontweight="bold", color=SEAL)
+        x = i + 0.5; fs = 20 if len(sv) <= 2 else (16 if len(sv) == 3 else 13)
+        ax.add_patch(plt.Circle((x, 0.58), 0.40, color=SEAL, alpha=0.88, zorder=2, ec="#7A1F19", lw=1.8))
+        ax.text(x, 0.58, sv, ha="center", va="center", fontsize=fs, fontweight="bold", color="white", zorder=3)
+        ax.text(x, 0.05, labels[i], ha="center", va="center", fontsize=14, fontweight="bold", color=SEAL)
     fig.tight_layout(pad=0.8); fig.savefig(out_path, transparent=True); plt.close(fig)
 
 
@@ -160,19 +161,32 @@ def _score_color(s):
     return SEAL if s >= 75 else (GOLD if s >= 55 else "#8E9298")
 
 
-def make_fortune_bars(labels, scores, out_path, title="운세 흐름", highlight_best=True):
-    """정량 '운세 지수' 막대그래프 (10년/12개월 등 공용)."""
+def make_fortune_bars(labels, scores, out_path, title="운세 흐름", highlight_best=True, focus_from=None):
+    """정량 '운세 지수' 막대그래프 (10년/12개월 등 공용).
+    focus_from(index)이 주어지면: 그 이전(과거) 막대는 흐리게 처리하고,
+    '최고' 강조는 focus_from 이후(현재·미래) 구간에서만 표시한다.
+    (예: 60대 손님에게 30·40대 과거를 '최고'로 보여주지 않기 위함)"""
     _ensure_font()
     n = len(labels)
     fig, ax = plt.subplots(figsize=(12.4, 4.2), dpi=170); fig.patch.set_alpha(0)
-    colors = [_score_color(s) for s in scores]
-    bars = ax.bar(range(n), scores, color=colors, width=0.66, zorder=3)
-    for i, (b, s) in enumerate(zip(bars, scores)):
-        ax.text(b.get_x() + b.get_width() / 2, s + 1.5, str(int(s)), ha="center", va="bottom",
-                fontsize=13, fontweight="bold", color=INK)
+    ff = focus_from if (focus_from is not None and 0 <= focus_from < n) else 0
+    bars = []
+    for i, s in enumerate(scores):
+        past = i < ff
+        col = "#C9CCD1" if past else _score_color(s)
+        b = ax.bar(i, s, color=col, width=0.66, zorder=3, alpha=(0.55 if past else 1.0))
+        bars.append(b)
+        ax.text(i, s + 1.5, str(int(s)), ha="center", va="bottom",
+                fontsize=13, fontweight="bold", color=("#AAB0B6" if past else INK))
+    # '최고'는 현재·미래(focus_from 이후) 구간에서만 표시
     if highlight_best and scores:
-        bi = int(max(range(n), key=lambda k: scores[k]))
-        ax.text(bi, scores[bi] + 8, "최고", ha="center", va="bottom", fontsize=13, fontweight="bold", color=SEAL)
+        cand = list(range(ff, n)) or list(range(n))
+        bi = int(max(cand, key=lambda k: scores[k]))
+        ax.text(bi, scores[bi] + 8, "앞으로 최고", ha="center", va="bottom",
+                fontsize=13, fontweight="bold", color=SEAL)
+    if ff > 0:
+        ax.axvline(ff - 0.5, color=SEAL, lw=1.4, ls=":", zorder=1)
+        ax.text(ff - 0.5, 103, "지금부터", ha="center", va="bottom", fontsize=11.5, fontweight="bold", color=SEAL)
     ax.set_ylim(0, 108)
     ax.set_xticks(range(n)); ax.set_xticklabels(labels, fontsize=14, fontweight="bold")
     ax.set_yticks([]); ax.set_title(title, fontsize=18, fontweight="bold", color=SEAL, pad=12)
@@ -183,24 +197,34 @@ def make_fortune_bars(labels, scores, out_path, title="운세 흐름", highlight
 
 
 def make_life_curve(ages, scores, out_path, cur_age=None):
-    """인생 곡선(대운별 운세지수) — 황금기/저점을 한눈에."""
+    """인생 곡선(대운별 운세지수).
+    현재 나이 이전(과거)은 흐리게, 이후(현재·미래)는 선명하게 그려
+    '지나온 길'과 '앞으로의 길'을 구분한다. '전성기' 강조는 현재 이후에서만 표시."""
     _ensure_font()
     fig, ax = plt.subplots(figsize=(12.4, 4.0), dpi=170); fig.patch.set_alpha(0)
-    ax.plot(ages, scores, "-", color=GOLD, lw=3, zorder=2)
-    ax.fill_between(ages, scores, 40, color=GOLD, alpha=0.12, zorder=1)
+    ax.plot(ages, scores, "-", color="#C9CCD1", lw=2.4, zorder=2)  # 전체(회색 바탕선)
+    # 현재 이후 구간만 금색으로 덧그림
+    fut = [i for i in range(len(ages)) if cur_age is None or ages[i] + 9 >= cur_age]
+    if len(fut) >= 2:
+        ax.plot([ages[i] for i in fut], [scores[i] for i in fut], "-", color=GOLD, lw=3.4, zorder=3)
+        ax.fill_between([ages[i] for i in fut], [scores[i] for i in fut], 40, color=GOLD, alpha=0.14, zorder=1)
     for a, s in zip(ages, scores):
-        ax.plot(a, s, "o", ms=10, color=_score_color(s), markeredgecolor="white", markeredgewidth=1.4, zorder=3)
+        past = (cur_age is not None and a + 9 < cur_age)
+        ax.plot(a, s, "o", ms=9, color=("#C9CCD1" if past else _score_color(s)),
+                markeredgecolor="white", markeredgewidth=1.4, zorder=4)
+    # '앞으로의 전성기'는 현재 이후 구간에서 가장 높은 지점에 표시
     if scores:
-        bi = int(max(range(len(scores)), key=lambda k: scores[k]))
-        ax.annotate("황금기", (ages[bi], scores[bi]), textcoords="offset points", xytext=(0, 14),
+        cand = fut if fut else list(range(len(scores)))
+        bi = int(max(cand, key=lambda k: scores[k]))
+        ax.annotate("앞으로의 전성기", (ages[bi], scores[bi]), textcoords="offset points", xytext=(0, 15),
                     ha="center", fontsize=14, fontweight="bold", color=SEAL)
     if cur_age is not None:
-        ax.axvline(cur_age, color=SEAL, lw=1.6, ls=":", zorder=1)
-        ax.text(cur_age, 104, "현재", ha="center", fontsize=12, fontweight="bold", color=SEAL)
+        ax.axvline(cur_age, color=SEAL, lw=1.8, ls=":", zorder=2)
+        ax.text(cur_age, 104, "현재", ha="center", fontsize=12.5, fontweight="bold", color=SEAL)
     ax.set_ylim(35, 110); ax.set_yticks([])
     ax.set_xlabel("나이(세)", fontsize=13, fontweight="bold", color=INK)
     ax.tick_params(axis="x", labelsize=13)
-    ax.set_title("인생 운세 곡선", fontsize=18, fontweight="bold", color=SEAL, pad=12)
+    ax.set_title("인생 운세 곡선 (회색=지나온 길 · 금색=앞으로의 길)", fontsize=16, fontweight="bold", color=SEAL, pad=12)
     ax.spines[["top", "right", "left"]].set_visible(False)
     fig.tight_layout(pad=0.8); fig.savefig(out_path, transparent=True); plt.close(fig)
 

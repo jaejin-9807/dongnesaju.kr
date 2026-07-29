@@ -50,8 +50,11 @@ def main():
         minute = int(payload.get("minute", 0) or 0)
 
         # 음력 입력이면 양력으로 변환한다(윤달 지원). 어르신 사용자는 음력 생일이 많다.
+        # 변환 전 '음력 원본'을 따로 보관해, 결과지에 '음력 원본 + 양력 변환'을 함께 표시한다.
+        birth_lunar = None
         if calendar_type == "음력":
             is_leap = bool(payload.get("isLeapMonth", False))
+            birth_lunar = {"year": year, "month": month, "day": day, "isLeap": is_leap}
             try:
                 from korean_lunar_calendar import KoreanLunarCalendar
                 cal = KoreanLunarCalendar()
@@ -115,6 +118,8 @@ def main():
             "name": name,
             "gender": gender,
             "birth": {"year": year, "month": month, "day": day, "hour": hour, "minute": minute},
+            "birthCalendarType": calendar_type,
+            "birthLunar": birth_lunar,
             "pillars": {
                 "연주": list(pillars.yeonju),
                 "월주": list(pillars.wolju),
