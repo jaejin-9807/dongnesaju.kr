@@ -323,22 +323,52 @@ def make_oheng_donut(oheng_dist: dict, out_path: str):
     fig.tight_layout(pad=1.0); fig.savefig(out_path, transparent=True); plt.close(fig)
 
 
-def make_oheng_pentagon(oheng_dist: dict, out_path: str):
-    """오행 상생 순환 오각형 — 크고 선명하게."""
+def make_oheng_pentagon(oheng_dist: dict, out_path: str, ilgan=None):
+    """오행 5요소 구성도 — 각 원에 오행·비율·개수, 파란 화살표(상생)·빨간 별(상극)·범례.
+    상생: 목→화→토→금→수→목 / 상극: 목→토→수→화→금→목"""
     _ensure_font()
-    fig, ax = plt.subplots(figsize=(9.6, 8.2), dpi=170); fig.patch.set_alpha(0)
-    ax.set_xlim(-1.7,1.7); ax.set_ylim(-1.55,1.6); ax.set_aspect("equal"); ax.axis("off")
-    ax.set_title("오행 상생(相生) 순환 구조", fontsize=26, fontweight="bold", color=SEAL, pad=10)
-    n=5; off=math.pi/2; pos={}
-    for i,o in enumerate(OHENG_ORDER):
-        a=off-2*math.pi*i/n; pos[o]=(math.cos(a)*1.12, math.sin(a)*1.12)
+    BLUE = "#3E6FB0"; RED = "#C0504D"
+    fig, ax = plt.subplots(figsize=(9.8, 9.4), dpi=170); fig.patch.set_alpha(0)
+    ax.set_xlim(-1.85, 1.85); ax.set_ylim(-1.75, 1.85); ax.set_aspect("equal"); ax.axis("off")
+    title = ("나의 오행: " + str(ilgan)) if ilgan else "나의 오행 구성"
+    ax.text(-1.8, 1.7, title, fontsize=24, fontweight="bold", color=INK, ha="left", va="center")
+
+    total = sum(oheng_dist.get(o, 0) for o in OHENG_ORDER) or 1
+    n = 5; off = math.pi / 2; R = 1.16; r_node = 0.42
+    pos = {}
+    for i, o in enumerate(OHENG_ORDER):
+        a = off - 2 * math.pi * i / n
+        pos[o] = (math.cos(a) * R, math.sin(a) * R)
+
+    def _trim(p1, p2, t1, t2):
+        dx, dy = p2[0] - p1[0], p2[1] - p1[1]
+        d = math.hypot(dx, dy) or 1.0
+        ux, uy = dx / d, dy / d
+        return (p1[0] + ux * t1, p1[1] + uy * t1), (p2[0] - ux * t2, p2[1] - uy * t2)
+
+    # 상극(빨강, 안쪽 별): i -> i+2
     for i in range(n):
-        x1,y1=pos[OHENG_ORDER[i]]; x2,y2=pos[OHENG_ORDER[(i+1)%n]]
-        ax.annotate("", xy=(x2*0.72,y2*0.72), xytext=(x1*0.72,y1*0.72),
-                    arrowprops=dict(arrowstyle="-|>", color=GOLD, lw=3.4, connectionstyle="arc3,rad=0.22"))
+        p1 = pos[OHENG_ORDER[i]]; p2 = pos[OHENG_ORDER[(i + 2) % n]]
+        s, e = _trim(p1, p2, r_node + 0.02, r_node + 0.06)
+        ax.annotate("", xy=e, xytext=s, zorder=2,
+                    arrowprops=dict(arrowstyle="-|>", color=RED, lw=2.4, alpha=0.9,
+                                    shrinkA=0, shrinkB=0))
+    # 상생(파랑, 바깥 곡선): i -> i+1
+    for i in range(n):
+        p1 = pos[OHENG_ORDER[i]]; p2 = pos[OHENG_ORDER[(i + 1) % n]]
+        s, e = _trim(p1, p2, r_node + 0.03, r_node + 0.10)
+        ax.annotate("", xy=e, xytext=s, zorder=3,
+                    arrowprops=dict(arrowstyle="-|>", color=BLUE, lw=3.4,
+                                    connectionstyle="arc3,rad=0.28", shrinkA=0, shrinkB=0))
+    # 오행 원
     for o in OHENG_ORDER:
-        x,y=pos[o]
-        ax.add_patch(plt.Circle((x,y),0.40, color=OHENG_COLORS[o], ec="white", lw=3.0, zorder=3))
-        ax.text(x,y,f"{o}\n{oheng_dist.get(o,0)}", ha="center", va="center",
-                fontsize=24, fontweight="bold", color="white", zorder=4, linespacing=1.05)
-    fig.tight_layout(pad=1.0); fig.savefig(out_path, transparent=True); plt.close(fig)
+        x, y = pos[o]; v = oheng_dist.get(o, 0); pct = round(v / total * 100)
+        ax.add_patch(plt.Circle((x, y), r_node, color=OHENG_COLORS[o], ec="white", lw=3.0, zorder=5))
+        ax.text(x, y + 0.09, o, ha="center", va="center", fontsize=23, fontweight="bold", color="white", zorder=6)
+        ax.text(x, y - 0.17, f"{pct}% · {v}개", ha="center", va="center", fontsize=12.5, fontweight="bold", color="white", zorder=6)
+    # 범례
+    ax.annotate("", xy=(-1.42, 1.28), xytext=(-1.78, 1.28), arrowprops=dict(arrowstyle="-|>", color=BLUE, lw=3.2))
+    ax.text(-1.34, 1.28, "상생 (서로 도와줌)", fontsize=12.5, va="center", color=INK, fontweight="bold")
+    ax.annotate("", xy=(-1.42, 1.06), xytext=(-1.78, 1.06), arrowprops=dict(arrowstyle="-|>", color=RED, lw=3.2))
+    ax.text(-1.34, 1.06, "상극 (서로 눌러줌)", fontsize=12.5, va="center", color=INK, fontweight="bold")
+    fig.tight_layout(pad=0.8); fig.savefig(out_path, transparent=True); plt.close(fig)

@@ -220,10 +220,9 @@
     });
   }
 
-  // '사주결과 보기': 브라우저 새 탭에서 결과지를 바로 열어준다(파일 앱·PDF 뷰어 불필요)
+  // '사주결과 보기': 전용 뷰어 페이지에서 브라우저 안에 직접 렌더링(PDF 뷰어 앱 불필요, 다운로드 없음)
   function viewResult(orderId) {
-    window.open(`/api/orders/${orderId}/pdf`, "_blank");
-    setTimeout(loadAndRender, 2000);
+    window.location.href = `/result-view.html?orderId=${encodeURIComponent(orderId)}`;
   }
 
   (async function init() {

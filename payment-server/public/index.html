@@ -725,7 +725,13 @@
         return;
       }
 
-      doneDesc.innerHTML = `${currentOrder.customerName}님, 결제를 진행하시면 신청이 접수됩니다.<br>결과지는 확인 후 입력하신 연락처로 전달해드려요.`;
+      doneDesc.innerHTML =
+        `${currentOrder.customerName}님, 결제를 진행해 주세요.` +
+        `<div style="margin-top:12px;padding:12px 14px;background:#FBEEE6;border:1px solid #E4B9B9;border-radius:8px;text-align:left;font-size:13px;line-height:1.7;">` +
+        `<b style="color:#C0392B;">💳 계좌이체(무통장 입금)로 결제하실 경우</b><br>` +
+        `입금 후 <b>채팅상담</b>으로 <b>"${currentOrder.customerName} ${currentOrder.amount.toLocaleString()}원 입금"</b> 이라고 꼭 남겨주세요.<br>` +
+        `사장님이 입금을 확인하고 <b>결제확인</b>을 눌러야 결과지를 보실 수 있어요.` +
+        `</div>`;
       doneModal.classList.add("active");
     } catch (err) {
       loadingModal.classList.remove("active");

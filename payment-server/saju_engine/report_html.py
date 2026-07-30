@@ -56,6 +56,33 @@ _TERM_MAP = [
 ]
 
 
+# 딱딱한 '~습니다'체를 부드러운 '~해요/~어요'체로. (자주 쓰는 어미만 안전하게 변환)
+_SOFTEN = [
+    ("있었습니다", "있었어요"), ("없었습니다", "없었어요"),
+    ("있습니다", "있어요"), ("없습니다", "없어요"),
+    ("좋습니다", "좋아요"), ("많습니다", "많아요"), ("같습니다", "같아요"),
+    ("높습니다", "높아요"), ("낮습니다", "낮아요"), ("적습니다", "적어요"),
+    ("깊습니다", "깊어요"), ("넓습니다", "넓어요"), ("강합니다", "강해요"), ("약합니다", "약해요"),
+    ("쉽습니다", "쉬워요"), ("어렵습니다", "어려워요"),
+    ("됐습니다", "됐어요"), ("됩니다", "돼요"),
+    ("했습니다", "했어요"), ("합니다", "해요"),
+    ("이었습니다", "이었어요"), ("였습니다", "였어요"), ("입니다", "이에요"),
+    ("겠습니다", "겠어요"),
+    ("드립니다", "드려요"), ("바랍니다", "바라요"),
+    ("집니다", "져요"), ("납니다", "나요"),
+    ("갑니다", "가요"), ("옵니다", "와요"), ("줍니다", "줘요"),
+]
+
+
+def _soften(text):
+    if not text:
+        return text
+    s = str(text)
+    for a, b in _SOFTEN:
+        s = s.replace(a, b)
+    return s
+
+
 def _simplify(text):
     """본문에서 어려운 사주 전문용어를 일반인이 이해할 수 있는 말로 바꾼다."""
     if not text:
@@ -193,29 +220,49 @@ class ChapterRegistry:
         return f"<span class='pgmark' style='font-size:5pt;color:#F7F0E1;line-height:0'>{token}MARK</span>"
 
     def toc_html(self):
-        rows = ["<div class='toc chapter'><h1>목 차</h1>"]
+        # 목차는 '1장 한 줄' 형태로 간결하게. (PART 헤더+챕터 제목 중복 제거)
+        rows = ["<div class='toc chapter'><h1>차 례</h1>"]
         for part_title, entries in self.parts:
-            if part_title:
-                rows.append(f"<div class='toc-part'>{esc(part_title)}</div>")
-            for title, token in entries:
-                rows.append(
-                    f"<div class='toc-entry'><span class='t'>{esc(plain(title))}</span>"
-                    f"<span class='leader'></span>"
-                    f"<span class='pg'>{{{{PG_{token}}}}}</span></div>"
-                )
+            if not entries:
+                continue
+            pt = plain(part_title or "").strip()
+            m = _re.match(r"PART\s*(\d+)\.?\s*(.*)", pt)
+            if m:
+                num = f"{int(m.group(1))}장"
+                title = (m.group(2).strip() or plain(entries[0][0]).strip())
+            elif "부록" in pt:
+                num = "부록"
+                title = "용어 설명과 안내"
+            else:
+                # 표지·이용안내·핵심요약 등 번호 없는 페이지는 목차에서 생략
+                continue
+            token = entries[0][1]
+            rows.append(
+                f"<div class='toc-entry'><span class='num'>{esc(num)}</span>"
+                f"<span class='t'>{esc(title)}</span>"
+                f"<span class='leader'></span>"
+                f"<span class='pg'>{{{{PG_{token}}}}}</span></div>"
+            )
         rows.append("</div>")
         return "".join(rows)
 
 
 def _p(text):
-    return f"<p class='body-text'>{esc(_simplify(plain(text)))}</p>"
+    return f"<p class='body-text'>{esc(_soften(_simplify(plain(text))))}</p>"
 
 
 def _chapter_head(reg, num_label, title, sub="", new_page=False):
     mark = reg.mark(title)
     sub_html = f"<div class='chapter-sub'>{esc(plain(sub))}</div>" if sub else ""
     cls = "chapter newpage" if new_page else "chapter"
-    return (f"<div class='{cls}'>{mark}"
+    # PART 챕터 앞에 '장 구분 간지 페이지'(빈 페이지 중앙에 'N장 + 제목')를 넣는다.
+    divider = ""
+    m = _re.match(r"PART\s*(\d+)", num_label or "")
+    if m and new_page:
+        divider = (f"<div class='chapter-divider'>"
+                   f"<div class='cd-badge'>{int(m.group(1))}장</div>"
+                   f"<div class='cd-title'>{esc(plain(title))}</div></div>")
+    return (f"{divider}<div class='{cls}'>{mark}"
             f"<div class='chapter-head'><div class='chapter-num'>{esc(num_label)}</div>"
             f"<div class='chapter-title'>{esc(plain(title))}</div>{sub_html}</div>")
 

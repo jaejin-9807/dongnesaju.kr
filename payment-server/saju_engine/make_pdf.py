@@ -86,7 +86,7 @@ def _build_charts(data, tmp_dir):
     od = data.get("ohengDistribution", {})
     charts.make_oheng_bar(od, _("oheng_bar.png")); cp["oheng_bar"] = uri("oheng_bar.png")
     charts.make_oheng_donut(od, _("oheng_donut.png")); cp["oheng_donut"] = uri("oheng_donut.png")
-    charts.make_oheng_pentagon(od, _("oheng_penta.png")); cp["oheng_pentagon"] = uri("oheng_penta.png")
+    charts.make_oheng_pentagon(od, _("oheng_penta.png"), ilgan=data.get("ilgan")); cp["oheng_pentagon"] = uri("oheng_penta.png")
     charts.make_sipseong_chart(data.get("sipseong", {}), _("sipseong.png"))
     cp["sipseong"] = uri("sipseong.png")
 

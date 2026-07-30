@@ -129,6 +129,10 @@ body {{ string-set: docheader "{header_text}"; }}
 .chapter {{ page-break-before:auto; margin-top:9mm; }}
 .chapter:first-of-type {{ margin-top:0; }}
 .chapter.newpage {{ page-break-before:always; margin-top:0; }}
+/* 장 구분 간지 페이지: 빈 페이지 중앙에 'N장 + 제목' */
+.chapter-divider {{ page-break-before:always; page-break-after:always; height:235mm; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }}
+.cd-badge {{ background:{t['seal']}; color:#fff; font-family:'SerifKR'; font-weight:700; font-size:21pt; padding:4mm 13mm; border-radius:9mm; letter-spacing:0.08em; margin-bottom:13mm; }}
+.cd-title {{ font-family:'SerifKR'; font-weight:700; font-size:34pt; color:{t['ink']}; letter-spacing:0.05em; }}
 .chapter-head {{
   border-bottom:2pt solid {t['gold']}; padding-bottom:3.5mm; margin-bottom:5mm;
   break-after:avoid; page-break-after:avoid; break-inside:avoid;
@@ -145,7 +149,7 @@ body {{ string-set: docheader "{header_text}"; }}
 .sub-title {{ font-family:'SansKR'; font-size:16.8pt; font-weight:700; color:{t['ink']}; margin:5mm 0 2mm; break-after:avoid; page-break-after:avoid; }}
 
 p {{ margin:0 0 3mm; }}
-.body-text {{ font-size:17.6pt; text-align:justify; line-height:1.85; margin:0 0 4mm; }}
+.body-text {{ font-size:21pt; text-align:justify; line-height:1.95; letter-spacing:0.02em; margin:0 0 4.5mm; }}
 .lead {{ font-size:16.5pt; color:{t['ink']}; }}
 .muted {{ color:{t['ink_soft']}; }}
 strong, b {{ font-weight:700; }}
@@ -193,8 +197,10 @@ th {{ background:{t['ivory_deep']}; font-weight:700; color:{t['ink']}; letter-sp
 .body-text {{ orphans:2; widows:2; }}
 .toc h1 {{ font-family:'SerifKR'; font-size:26pt; color:{t['ink']}; text-align:center; margin:0 0 9mm; font-weight:700; }}
 .toc-part {{ font-family:'SerifKR'; font-weight:700; font-size:17.5pt; color:{t['seal']}; margin:6mm 0 2mm; }}
-.toc-entry {{ display:flex; align-items:baseline; font-size:16pt; margin:2.6mm 0; }}
+.toc-entry {{ display:flex; align-items:baseline; font-size:16.5pt; margin:3.4mm 0; }}
 .toc-entry a {{ color:{t['ink']}; text-decoration:none; }}
+.toc-entry .num {{ font-family:'SerifKR'; font-weight:700; color:{t['gold']}; min-width:12mm; }}
+.toc-entry .t {{ font-family:'SansKR'; font-weight:700; color:{t['ink']}; }}
 .toc-entry .leader {{ flex:1; border-bottom:0.4pt dotted {t['line']}; margin:0 2mm; transform:translateY(-1mm); }}
 .toc-entry .pg {{ color:{t['ink_soft']}; font-size:12.5pt; }}
 /* WeasyPrint: 목차 페이지번호 자동 채움 */

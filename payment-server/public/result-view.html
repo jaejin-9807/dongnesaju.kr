@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=3" />
+<title>사주 결과지 · 동네사주카페</title>
+<!-- PDF.js: 폰에 PDF 뷰어가 없어도 브라우저 안에서 직접 렌더링 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --ink:#1C2333; --gold:#C9A24B; --gold-light:#E8D4A0; --paper:#EDE6D6; --line:#E3D9C0; }
+  body { font-family:"Pretendard","Noto Sans KR","맑은 고딕",sans-serif; background:var(--paper); color:var(--ink); }
+  header {
+    position:sticky; top:0; z-index:10; display:flex; align-items:center; justify-content:space-between;
+    background:var(--ink); color:var(--gold-light); padding:12px 16px; border-bottom:3px solid var(--gold);
+  }
+  header .t { font-weight:800; font-size:15px; }
+  header a { color:var(--gold-light); text-decoration:none; font-size:12.5px; font-weight:700; }
+  header .btns { display:flex; gap:12px; align-items:center; }
+  #viewer { max-width:900px; margin:0 auto; padding:12px 6px 60px; }
+  #viewer canvas { display:block; width:100%; height:auto; margin:0 auto 10px; box-shadow:0 4px 16px rgba(28,35,51,0.14); background:#fff; border-radius:2px; }
+  .status { text-align:center; padding:60px 20px; color:#6B6252; font-size:14px; line-height:1.7; }
+  .spinner { display:inline-block; width:26px; height:26px; border:3px solid var(--line); border-top-color:var(--gold); border-radius:50%; animation:spin .8s linear infinite; margin-bottom:12px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .savebtn { background:var(--gold); color:var(--ink); border:none; border-radius:6px; padding:7px 12px; font-size:12.5px; font-weight:800; cursor:pointer; }
+</style>
+</head>
+<body>
+<header>
+  <a href="/my.html">&larr; 마이페이지</a>
+  <span class="t">🔮 나의 사주 결과지</span>
+  <span class="btns"><button class="savebtn" id="saveBtn">저장</button></span>
+</header>
+
+<div id="viewer">
+  <div class="status" id="status"><span class="spinner"></span><br>결과지를 불러오는 중이에요...<br>잠시만 기다려 주세요.</div>
+</div>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const orderId = params.get("orderId");
+  const pdfUrl = `/api/orders/${orderId}/pdf`;
+  const viewer = document.getElementById("viewer");
+  const statusEl = document.getElementById("status");
+
+  document.getElementById("saveBtn").addEventListener("click", () => { window.location.href = pdfUrl + "?dl=1"; });
+
+  if (!orderId) {
+    statusEl.innerHTML = "주문 정보가 없습니다. 마이페이지에서 다시 열어 주세요.";
+  } else {
+    render();
+  }
+
+  async function render() {
+    try {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+      const res = await fetch(pdfUrl);
+      if (!res.ok) {
+        let msg = "결과지를 불러오지 못했습니다.";
+        try { const j = await res.json(); if (j.message) msg = j.message; } catch (e) {}
+        statusEl.innerHTML = msg;
+        return;
+      }
+      const buf = await res.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+      statusEl.remove();
+
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const targetW = Math.min(viewer.clientWidth - 12, 880);
+
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const base = page.getViewport({ scale: 1 });
+        const scale = (targetW / base.width) * dpr;
+        const vp = page.getViewport({ scale });
+        const canvas = document.createElement("canvas");
+        canvas.width = vp.width; canvas.height = vp.height;
+        viewer.appendChild(canvas);
+        await page.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
+      }
+    } catch (e) {
+      statusEl.innerHTML = "결과지를 여는 중 문제가 발생했어요.<br>잠시 후 다시 시도하거나 사장님께 문의해 주세요.<br><small>" + (e.message || e) + "</small>";
+    }
+  }
+</script>
+</body>
+</html>
