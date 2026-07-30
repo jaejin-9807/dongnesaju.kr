@@ -135,17 +135,17 @@ body {{ string-set: docheader "{header_text}"; }}
 }}
 .chapter-num {{ font-family:'SerifKR'; font-size:13pt; color:{t['seal']}; letter-spacing:0.26em; font-weight:700; }}
 .chapter-title {{ font-family:'SerifKR'; font-size:25pt; font-weight:700; color:{t['ink']}; margin-top:1.5mm; letter-spacing:0.02em; }}
-.chapter-sub {{ font-family:'SansKR'; font-size:13pt; color:{t['ink_soft']}; margin-top:1.5mm; }}
+.chapter-sub {{ font-family:'SansKR'; font-size:14.5pt; color:{t['ink_soft']}; margin-top:1.5mm; }}
 
 .section-title {{
   font-family:'SerifKR'; font-size:18pt; font-weight:700; color:{t['seal']};
   margin:6mm 0 3mm; padding-left:3mm; border-left:3.5pt solid {t['gold']};
   break-after:avoid; page-break-after:avoid;
 }}
-.sub-title {{ font-family:'SansKR'; font-size:15pt; font-weight:700; color:{t['ink']}; margin:4.5mm 0 2mm; break-after:avoid; page-break-after:avoid; }}
+.sub-title {{ font-family:'SansKR'; font-size:16.8pt; font-weight:700; color:{t['ink']}; margin:5mm 0 2mm; break-after:avoid; page-break-after:avoid; }}
 
 p {{ margin:0 0 3mm; }}
-.body-text {{ font-size:15.9pt; text-align:justify; line-height:1.75; margin:0 0 3.5mm; }}
+.body-text {{ font-size:17.6pt; text-align:justify; line-height:1.85; margin:0 0 4mm; }}
 .lead {{ font-size:16.5pt; color:{t['ink']}; }}
 .muted {{ color:{t['ink_soft']}; }}
 strong, b {{ font-weight:700; }}
@@ -192,8 +192,8 @@ th {{ background:{t['ivory_deep']}; font-weight:700; color:{t['ink']}; letter-sp
 .toc {{ page-break-before:always; }}
 .body-text {{ orphans:2; widows:2; }}
 .toc h1 {{ font-family:'SerifKR'; font-size:26pt; color:{t['ink']}; text-align:center; margin:0 0 9mm; font-weight:700; }}
-.toc-part {{ font-family:'SerifKR'; font-weight:700; font-size:15.5pt; color:{t['seal']}; margin:6mm 0 2mm; }}
-.toc-entry {{ display:flex; align-items:baseline; font-size:13.5pt; margin:2mm 0; }}
+.toc-part {{ font-family:'SerifKR'; font-weight:700; font-size:17.5pt; color:{t['seal']}; margin:6mm 0 2mm; }}
+.toc-entry {{ display:flex; align-items:baseline; font-size:16pt; margin:2.6mm 0; }}
 .toc-entry a {{ color:{t['ink']}; text-decoration:none; }}
 .toc-entry .leader {{ flex:1; border-bottom:0.4pt dotted {t['line']}; margin:0 2mm; transform:translateY(-1mm); }}
 .toc-entry .pg {{ color:{t['ink_soft']}; font-size:12.5pt; }}

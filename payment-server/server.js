@@ -272,25 +272,20 @@ app.get("/api/orders/:orderId/pdf", requireCustomer, (req, res) => {
     // 경로는 있는데 파일이 없는 경우(예: 저장공간 초기화). 관리자가 다시 생성하면 복구됨.
     return res.status(404).json({ success: false, message: "결과지 파일을 다시 준비 중입니다. 잠시 후 다시 시도하거나 사장님께 문의해 주세요." });
   }
-  // 결과지는 1회만 다운로드 가능. 이미 받았고 관리자가 재발급을 허용하지 않았다면 차단.
-  if (order.downloadedAt && !order.redownloadAllowed) {
-    return res.status(403).json({
-      success: false,
-      message: "이미 결과지를 다운로드하셨습니다. 다시 받으시려면 관리자에게 문의해 주세요.",
-    });
-  }
-  // 다운로드 처리(1회 소진): 다운로드 시각 기록, 관리자 재발급 허용 플래그 소진.
-  orderStore.updateOrder(order.orderId, {
-    downloadedAt: new Date().toISOString(),
-    downloadCount: (order.downloadCount || 0) + 1,
-    redownloadAllowed: false,
-  });
+  // '사주결과 보기'는 여러 번 볼 수 있게 한다(다운로드/뷰어 앱 없이 브라우저에서 바로 열람).
+  // 관리자 참고용으로 최초 확인 시각만 기록한다.
+  const patch = { lastViewedAt: new Date().toISOString() };
+  if (!order.viewedAt) patch.viewedAt = new Date().toISOString();
+  if (!order.downloadedAt) patch.downloadedAt = new Date().toISOString();
+  orderStore.updateOrder(order.orderId, patch);
   const meta = buildPdfMeta(order);
   const filename = order.pdfFilename ||
     (sanitizeFilename(`${meta.customerName}_${meta.reportType}_${meta.reportYear}`) + ".pdf");
-  res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+  // 기본은 브라우저에서 바로 보기(inline). ?dl=1 이면 파일로 저장(attachment).
+  const disp = req.query.dl ? "attachment" : "inline";
+  res.setHeader("Content-Disposition", `${disp}; filename*=UTF-8''${encodeURIComponent(filename)}`);
   res.setHeader("Content-Type", "application/pdf");
-  res.sendFile(order.pdfPath);
+  res.sendFile(order.pdfPath, (err) => { if (err && !res.headersSent) res.status(500).json({ success: false, message: "파일 전송 실패: " + err.message }); });
 });
 
 // ---------------------------------------------------------------

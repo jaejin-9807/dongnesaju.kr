@@ -112,8 +112,7 @@
     if (o.status === "PENDING_PAYMENT") return { label: "결제대기", cls: "status-pending" };
     if (o.status === "CANCELLED") return { label: "취소됨", cls: "status-failed" };
     if (hasResult(o)) {
-      if (o.downloadedAt && !o.redownloadAllowed) return { label: "다운로드 완료", cls: "status-done" };
-      return { label: "결과지 준비완료", cls: "status-done" };
+      return { label: o.viewedAt ? "확인 가능" : "결과지 준비완료", cls: "status-done" };
     }
     if (o.resultStatus === "GENERATING") return { label: "결과지 생성 중", cls: "status-waiting" };
     if (o.resultStatus === "FAILED") return { label: "생성 오류(문의)", cls: "status-failed" };
@@ -140,19 +139,12 @@
   // 결과지 영역(카운트다운 → 생성중 → 다운로드 1회 → 완료)
   function resultBlock(o) {
     if (hasResult(o)) {
-      if (o.downloadedAt && !o.redownloadAllowed) {
-        return `
-          <div class="result-box done">
-            <div class="rb-title">✅ 결과지가 전달되었어요</div>
-            <button class="btn btn-primary" disabled>결과지 다운받기 (이미 받음)</button>
-            <div class="rb-note">결과지는 1회만 다운로드할 수 있어요. 다시 받으시려면 관리자에게 문의해 주세요.</div>
-          </div>`;
-      }
       return `
         <div class="result-box ready">
-          <div class="rb-title">🎉 결과지가 완성되었어요!</div>
-          <button class="btn btn-primary" onclick="downloadResult('${o.orderId}', this)">결과지 다운받기 (PDF)</button>
-          <div class="rb-note">※ 결과지는 <b>1회만</b> 다운로드할 수 있어요. 꼭 저장해 두세요.</div>
+          <div class="rb-title">🎉 사주 결과지가 완성되었어요!</div>
+          <button class="btn btn-primary" onclick="viewResult('${o.orderId}')">🔮 사주결과 보기</button>
+          <div class="rb-note">버튼을 누르면 결과지가 화면에서 바로 열려요. 언제든 다시 볼 수 있어요.<br>
+            <a href="/api/orders/${o.orderId}/pdf?dl=1" style="color:var(--ink);font-weight:700;">📄 PDF 파일로 저장하기</a></div>
         </div>`;
     }
     if (o.autoGenerateAt) {
@@ -228,34 +220,10 @@
     });
   }
 
-  async function downloadResult(orderId, btn) {
-    const orig = btn.textContent;
-    btn.disabled = true;
-    btn.textContent = "다운로드 중...";
-    try {
-      const res = await fetch(`/api/orders/${orderId}/pdf`);
-      if (!res.ok) {
-        let msg = "결과지를 받지 못했습니다.";
-        try { const j = await res.json(); if (j.message) msg = j.message; } catch (e) {}
-        alert(msg);
-        btn.disabled = false; btn.textContent = orig;
-        loadAndRender();
-        return;
-      }
-      const blob = await res.blob();
-      let fname = "사주풀이_결과지.pdf";
-      const cd = res.headers.get("Content-Disposition");
-      if (cd) { const m = /filename\*=UTF-8''([^;]+)/.exec(cd); if (m) { try { fname = decodeURIComponent(m[1]); } catch (e) {} } }
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url; a.download = fname;
-      document.body.appendChild(a); a.click(); a.remove();
-      URL.revokeObjectURL(url);
-      setTimeout(loadAndRender, 1500);
-    } catch (e) {
-      alert("다운로드 중 오류가 발생했습니다: " + e.message);
-      btn.disabled = false; btn.textContent = orig;
-    }
+  // '사주결과 보기': 브라우저 새 탭에서 결과지를 바로 열어준다(파일 앱·PDF 뷰어 불필요)
+  function viewResult(orderId) {
+    window.open(`/api/orders/${orderId}/pdf`, "_blank");
+    setTimeout(loadAndRender, 2000);
   }
 
   (async function init() {
