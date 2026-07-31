@@ -248,7 +248,8 @@ class ChapterRegistry:
 
 
 def _p(text):
-    return f"<p class='body-text'>{esc(_soften(_simplify(plain(text))))}</p>"
+    # 문서 형식 톤(~합니다)을 유지하고, 어려운 용어만 쉬운 말로 바꾼다. (구어체 어미 변환은 하지 않음)
+    return f"<p class='body-text'>{esc(_simplify(plain(text)))}</p>"
 
 
 def _chapter_head(reg, num_label, title, sub="", new_page=False):

@@ -283,7 +283,7 @@
 
       <div class="form-row">
         <label>이름 <span class="hint">한글</span></label>
-        <input type="text" id="fName" placeholder="예: 김재진" />
+        <input type="text" id="fName" placeholder="예: 홍길동" />
         <input type="hidden" id="fNameHanja" />
         <div class="hanja-picker" id="fHanjaPicker"></div>
       </div>
@@ -355,7 +355,7 @@
 
         <div class="form-row">
           <label>이름 <span class="hint">한글</span></label>
-          <input type="text" id="pName" placeholder="예: 이수민" />
+          <input type="text" id="pName" placeholder="예: 홍길동" />
           <input type="hidden" id="pNameHanja" />
           <div class="hanja-picker" id="pHanjaPicker"></div>
         </div>
@@ -450,6 +450,7 @@
 <style>
   .hanja-picker { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
   .hanja-hint { font-size:12px; color:#8a8477; }
+  .hanja-guide { font-size:12px; color:#8B2E2E; font-weight:700; align-self:center; margin-left:2px; }
   .hanja-slot { position:relative; }
   .hanja-chip { font-family:inherit; min-width:42px; padding:8px 12px; border:1.5px solid #E3D9C0; border-radius:8px; background:#FDFBF5; font-size:18px; font-weight:800; color:#1C2333; cursor:pointer; }
   .hanja-chip.chosen { border-color:#C9A24B; background:#FBF4E2; }
@@ -609,6 +610,10 @@
         slot.appendChild(chip);
         picker.appendChild(slot);
       });
+      const guide = document.createElement("span");
+      guide.className = "hanja-guide";
+      guide.textContent = "👈 글자를 누르면 한자를 고를 수 있어요 (선택)";
+      picker.appendChild(guide);
       updateHidden();
     }
     nameEl.addEventListener("input", () => { sel = []; render(); });
@@ -728,9 +733,9 @@
       doneDesc.innerHTML =
         `${currentOrder.customerName}님, 결제를 진행해 주세요.` +
         `<div style="margin-top:12px;padding:12px 14px;background:#FBEEE6;border:1px solid #E4B9B9;border-radius:8px;text-align:left;font-size:13px;line-height:1.7;">` +
-        `<b style="color:#C0392B;">💳 계좌이체(무통장 입금)로 결제하실 경우</b><br>` +
-        `입금 후 <b>채팅상담</b>으로 <b>"${currentOrder.customerName} ${currentOrder.amount.toLocaleString()}원 입금"</b> 이라고 꼭 남겨주세요.<br>` +
-        `사장님이 입금을 확인하고 <b>결제확인</b>을 눌러야 결과지를 보실 수 있어요.` +
+        `<b style="color:#C0392B;">💳 결제 안내</b><br>` +
+        `현재는 베타 버전이라 온라인 카드 결제는 준비 중이며, <b>계좌이체(무통장 입금)</b>로만 결제하실 수 있습니다.<br>` +
+        `입금 후 <b>채팅상담</b>으로 <b>"홍길동 ${currentOrder.amount.toLocaleString()}원 입금"</b> 처럼 <b>본인 성함과 금액</b>을 꼭 남겨주세요.` +
         `</div>`;
       doneModal.classList.add("active");
     } catch (err) {
