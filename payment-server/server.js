@@ -264,6 +264,10 @@ app.get("/api/orders/:orderId/pdf", requireCustomer, (req, res) => {
   if (order.userId !== req.currentUser.userId) {
     return res.status(403).json({ success: false, message: "본인 주문의 결과지만 받을 수 있습니다." });
   }
+  // 입금(결제) 확인 전에는 열람 불가 — 관리자가 '입금확인'을 눌러야 열린다.
+  if (!order.paymentConfirmed) {
+    return res.status(403).json({ success: false, message: "입금 확인 후 결과지를 보실 수 있습니다. 계좌이체로 결제하셨다면 채팅상담으로 \"이름 금액 입금\"을 남겨주세요." });
+  }
   const fs2 = require("fs");
   if (!order.pdfPath) {
     return res.status(404).json({ success: false, message: "아직 결과지가 준비되지 않았습니다." });
@@ -409,6 +413,8 @@ app.post("/api/admin/orders/:orderId/confirm-payment", requireAdmin, (req, res) 
     status: "PAID_WAITING_DELIVERY",
     paidAt: new Date().toISOString(),
     paidConfirmedBy: "admin",
+    paymentConfirmed: true,                 // 이 순간부터 고객이 결과지 열람 가능
+    paymentConfirmedAt: new Date().toISOString(),
   });
   res.json({ success: true, order: updated });
 });

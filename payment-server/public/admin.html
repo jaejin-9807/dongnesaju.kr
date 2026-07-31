@@ -207,14 +207,21 @@
     return `${label}: <b>${person.name || "-"}</b> / ${person.gender || "-"} / ${b.year || "-"}.${b.month || "-"}.${b.day || "-"}${b.hour ? " " + b.hour + "시" : ""} (${b.calendarType || "-"})`;
   }
 
+  function custName(o) {
+    return (o.person1 && o.person1.name) || o.customerName || "고객";
+  }
+
   function actionButtonsHtml(o) {
     const canGenerate = o.status !== "CANCELLED" && !!o.sajuResult;
     const hasPdf = isResultReady(o);
-    const isPaidPending = o.status === "PENDING_PAYMENT" && Number(o.amount) > 0;
+    // 입금확인 전에는 항상 '입금확인' 버튼 노출 (확인해야 사용자가 결과지 열람 가능)
+    const needsConfirm = !o.paymentConfirmed && o.status !== "CANCELLED" && Number(o.amount) > 0;
     const canReenable = hasPdf && o.downloadedAt && !o.redownloadAllowed;
     let btns = "";
-    if (isPaidPending) {
-      btns += `<button class="action-btn btn-confirm" onclick="confirmPayment('${o.orderId}')">입금확인(결제완료)</button>`;
+    if (needsConfirm) {
+      btns += `<button class="action-btn btn-confirm" onclick="confirmPayment('${o.orderId}', '${(custName(o)).replace(/'/g, "\\'")}')">💰 입금확인</button>`;
+    } else if (o.paymentConfirmed) {
+      btns += `<span class="action-btn" style="background:#E8F5E9;color:#2E7D32;cursor:default;">✅ 입금확인됨</span>`;
     }
     btns += `<button class="action-btn btn-generate" ${!canGenerate ? "disabled" : ""} onclick="generatePdf('${o.orderId}', this)">운세풀이 즉시생성</button>`;
     btns += `<button class="action-btn btn-download" ${!hasPdf ? "disabled" : ""} onclick="downloadPdf('${o.orderId}')">PDF 다운로드</button>`;
@@ -342,12 +349,14 @@
 
   function downloadPdf(orderId) { window.open(`/api/admin/orders/${orderId}/pdf`, "_blank"); }
 
-  async function confirmPayment(orderId) {
-    if (!confirm("입금을 확인하셨나요?\n결제완료로 처리하고, 1시간 뒤 결과지가 자동 생성됩니다.")) return;
+  async function confirmPayment(orderId, name) {
+    const who = name || "고객";
+    if (!confirm(`${who}님, 입금 확인되었나요?\n\n확인을 누르면 이 고객이 마이페이지에서 사주 결과지를 볼 수 있게 됩니다.`)) return;
     try {
       const res = await fetch(`/api/admin/orders/${orderId}/confirm-payment`, { method: "POST" });
       const data = await res.json();
       if (!data.success) { alert(data.message || "처리 실패"); return; }
+      alert(`${who}님 입금이 확인 처리되었습니다.\n이제 고객이 결과지를 열람할 수 있어요.`);
       await loadOrders();
     } catch (e) { alert("오류: " + e.message); }
   }

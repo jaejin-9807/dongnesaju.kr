@@ -109,22 +109,14 @@
   function hasResult(o) { return !!o.pdfPath || o.resultStatus === "READY"; }
 
   function statusInfo(o) {
-    if (o.status === "PENDING_PAYMENT") return { label: "결제대기", cls: "status-pending" };
+    if (o.status === "PENDING_PAYMENT" && !o.paymentConfirmed) return { label: "결제·입금 대기", cls: "status-pending" };
     if (o.status === "CANCELLED") return { label: "취소됨", cls: "status-failed" };
-    if (hasResult(o)) {
+    const released = !!o.paymentConfirmed;      // 관리자 입금확인 여부
+    if (hasResult(o) && released) {
       return { label: o.viewedAt ? "확인 가능" : "결과지 준비완료", cls: "status-done" };
     }
-    if (o.resultStatus === "GENERATING") return { label: "결과지 생성 중", cls: "status-waiting" };
-    if (o.resultStatus === "FAILED") return { label: "생성 오류(문의)", cls: "status-failed" };
-    if (o.autoGenerateAt) {
-      return new Date(o.autoGenerateAt).getTime() > Date.now()
-        ? { label: "결과지 준비 중", cls: "status-waiting" }
-        : { label: "결과지 생성 중", cls: "status-waiting" };
-    }
-    if (o.status === "PAID_WAITING_DELIVERY") return { label: "확인 중", cls: "status-waiting" };
-    if (o.status === "DELIVERED") return { label: "전달완료", cls: "status-done" };
-    if (o.status === "FAILED") return { label: "결제실패", cls: "status-failed" };
-    return { label: o.status || "-", cls: "status-pending" };
+    if (!released) return { label: "입금 확인 대기", cls: "status-waiting" };
+    return { label: "결과지 준비 중", cls: "status-waiting" };
   }
 
   // 결제대기 주문의 버튼(결제하기 · 주문취소) — 같은 크기로 나란히
@@ -138,7 +130,9 @@
 
   // 결과지 영역(카운트다운 → 생성중 → 다운로드 1회 → 완료)
   function resultBlock(o) {
-    if (hasResult(o)) {
+    const released = !!o.paymentConfirmed;   // 관리자 입금확인 여부
+    // 1) 입금확인 + 결과지 준비 완료 → 열람 가능
+    if (hasResult(o) && released) {
       return `
         <div class="result-box ready">
           <div class="rb-title">🎉 사주 결과지가 완성되었어요!</div>
@@ -147,31 +141,21 @@
             <a href="/api/orders/${o.orderId}/pdf?dl=1" style="color:var(--ink);font-weight:700;">📄 PDF 파일로 저장하기</a></div>
         </div>`;
     }
-    if (o.autoGenerateAt) {
-      const future = new Date(o.autoGenerateAt).getTime() > Date.now();
-      if (future) {
-        return `
-          <div class="result-box wait">
-            <div class="rb-title">⏳ 결과지 준비 중</div>
-            <div class="countdown" data-until="${o.autoGenerateAt}">--:--:--</div>
-            <div class="rb-note">완성되면 이 화면에서 바로 다운로드할 수 있어요. (창을 닫아도 계속 진행돼요)</div>
-          </div>`;
-      }
+    // 2) 아직 입금확인 전 → 결과지가 준비돼 있어도 열람 불가
+    if (!released) {
       return `
         <div class="result-box wait">
-          <div class="rb-title"><span class="spinner"></span> 결과지를 만들고 있어요</div>
-          <div class="rb-note">거의 다 됐어요. 잠시만 기다려 주세요. (자동으로 새로고침돼요)</div>
+          <div class="rb-title">⏳ 입금 확인을 기다리고 있어요</div>
+          <div class="rb-note">계좌이체(무통장 입금)로 결제하셨다면 <b>채팅상담</b>으로 “이름 금액 입금”을 남겨주세요.<br>
+            사장님이 입금을 확인하면 이 화면에서 바로 결과지를 보실 수 있어요.</div>
         </div>`;
     }
-    // 결제(입금) 확인은 됐지만 아직 사장님이 결과지를 만들기 전
-    if (o.status === "PAID_WAITING_DELIVERY") {
-      return `
-        <div class="result-box wait">
-          <div class="rb-title">🖊️ 결과지를 준비하고 있어요</div>
-          <div class="rb-note">사장님이 정성껏 사주를 풀이하는 중이에요. 완성되면 이 화면에서 바로 다운로드할 수 있어요.</div>
-        </div>`;
-    }
-    return "";
+    // 3) 입금은 확인됐지만 아직 결과지 생성 전
+    return `
+      <div class="result-box wait">
+        <div class="rb-title">🖊️ 결과지를 준비하고 있어요</div>
+        <div class="rb-note">입금이 확인되었어요. 사장님이 정성껏 사주를 풀이하는 중이에요. 완성되면 이 화면에서 바로 열람할 수 있어요. (자동으로 새로고침돼요)</div>
+      </div>`;
   }
 
   function cardHtml(o) {
