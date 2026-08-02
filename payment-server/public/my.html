@@ -143,10 +143,16 @@
     }
     // 2) 아직 입금확인 전 → 결과지가 준비돼 있어도 열람 불가
     if (!released) {
+      const amt = Number(o.amount) || 0;
       return `
         <div class="result-box wait">
           <div class="rb-title">⏳ 입금 확인을 기다리고 있어요</div>
-          <div class="rb-note">계좌이체(무통장 입금)로 결제하셨다면 <b>채팅상담</b>으로 “이름 금액 입금”을 남겨주세요.<br>
+          <div class="account-box" style="margin:10px auto 12px;max-width:420px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px 16px;text-align:left;">
+            <div style="font-weight:800;color:var(--ink);margin-bottom:6px;">💳 입금 계좌</div>
+            <div style="font-size:15px;font-weight:800;color:var(--ink);letter-spacing:0.3px;">토스뱅크 1002-6663-7130</div>
+            <div style="font-size:13px;color:var(--text-sub);margin-top:2px;">예금주: 살림허브${amt ? ` · 입금액 <b style="color:var(--ink)">${amt.toLocaleString()}원</b>` : ""}</div>
+          </div>
+          <div class="rb-note">위 계좌로 입금하신 뒤 <b>채팅상담</b>으로 “<b>${(o.customerName || "이름")}</b> ${amt ? amt.toLocaleString() + "원 " : ""}입금”을 남겨주세요.<br>
             사장님이 입금을 확인하면 이 화면에서 바로 결과지를 보실 수 있어요.</div>
         </div>`;
     }
