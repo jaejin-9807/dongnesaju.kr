@@ -66,11 +66,11 @@ def make_oheng_dashboard(oheng_dist: dict, out_path: str):
     bars = ax_bar.bar(OHENG_ORDER, values, color=colors, width=0.64, zorder=3)
     for rect, v in zip(bars, values):
         ax_bar.text(rect.get_x() + rect.get_width() / 2, rect.get_height() + 0.08, str(v),
-                    ha="center", va="bottom", fontsize=18, fontweight="bold", color=INK)
+                    ha="center", va="bottom", fontsize=24, fontweight="bold", color=INK)
     ax_bar.set_ylim(0, max(values + [1]) + 1.2)
-    ax_bar.set_title("오행 개수 분포", fontsize=19, fontweight="bold", color=SEAL, pad=12)
+    ax_bar.set_title("오행 개수 분포", fontsize=25, fontweight="bold", color=SEAL, pad=12)
     ax_bar.spines[["top", "right", "left"]].set_visible(False)
-    ax_bar.set_yticks([]); ax_bar.tick_params(axis="x", labelsize=19)
+    ax_bar.set_yticks([]); ax_bar.tick_params(axis="x", labelsize=25)
     ax_bar.set_axisbelow(True); ax_bar.grid(axis="y", color=LINE, linewidth=0.6, zorder=0)
 
     ax_ring = fig.add_subplot(gs[0, 1])
@@ -78,18 +78,18 @@ def make_oheng_dashboard(oheng_dist: dict, out_path: str):
         or [(o, 1, c) for o, c in zip(OHENG_ORDER, colors)]
     ax_ring.pie([v for _, v, _ in non_zero], colors=[c for _, _, c in non_zero],
                 startangle=90, counterclock=False, autopct="%1.0f%%", pctdistance=0.80,
-                textprops=dict(fontsize=13, fontweight="bold", color="white"),
+                textprops=dict(fontsize=17, fontweight="bold", color="white"),
                 wedgeprops=dict(width=0.42, edgecolor="white", linewidth=2), radius=1.08)
-    ax_ring.set_title("오행 비율", fontsize=19, fontweight="bold", color=SEAL, pad=12)
+    ax_ring.set_title("오행 비율", fontsize=25, fontweight="bold", color=SEAL, pad=12)
     ax_ring.legend([f"{o} {v}개" for o, v, _ in non_zero],
-                   loc="upper center", bbox_to_anchor=(0.5, -0.02), ncol=3, fontsize=13,
+                   loc="upper center", bbox_to_anchor=(0.5, -0.02), ncol=3, fontsize=17,
                    frameon=False, handlelength=1.0, handletextpad=0.5, columnspacing=1.1,
                    labelcolor=[c for _, _, c in non_zero])
     ax_ring.set_aspect("equal")
 
     ax_p = fig.add_subplot(gs[1, :])
     ax_p.set_xlim(-1.7, 1.7); ax_p.set_ylim(-1.35, 1.4); ax_p.set_aspect("equal"); ax_p.axis("off")
-    ax_p.set_title("오행 상생 순환 구조", fontsize=19, fontweight="bold", color=SEAL, pad=8)
+    ax_p.set_title("오행 상생 순환 구조", fontsize=25, fontweight="bold", color=SEAL, pad=8)
     n = 5; off = math.pi / 2; pos = {}
     for i, o in enumerate(OHENG_ORDER):
         a = off - 2 * math.pi * i / n
@@ -102,7 +102,7 @@ def make_oheng_dashboard(oheng_dist: dict, out_path: str):
         x, y = pos[o]
         ax_p.add_patch(plt.Circle((x, y), 0.34, color=OHENG_COLORS[o], ec="white", lw=2.6, zorder=3))
         ax_p.text(x, y, f"{o}\n{oheng_dist.get(o, 0)}", ha="center", va="center",
-                  fontsize=17, fontweight="bold", color="white", zorder=4, linespacing=1.1)
+                  fontsize=22, fontweight="bold", color="white", zorder=4, linespacing=1.1)
     fig.savefig(out_path, transparent=True); plt.close(fig)
 
 
@@ -117,7 +117,7 @@ def make_sipseong_chart(sipseong: dict, out_path: str):
         x = i + 0.5; fs = 20 if len(sv) <= 2 else (16 if len(sv) == 3 else 13)
         ax.add_patch(plt.Circle((x, 0.58), 0.40, color=SEAL, alpha=0.88, zorder=2, ec="#7A1F19", lw=1.8))
         ax.text(x, 0.58, sv, ha="center", va="center", fontsize=fs, fontweight="bold", color="white", zorder=3)
-        ax.text(x, 0.05, labels[i], ha="center", va="center", fontsize=14, fontweight="bold", color=SEAL)
+        ax.text(x, 0.05, labels[i], ha="center", va="center", fontsize=18, fontweight="bold", color=SEAL)
     fig.tight_layout(pad=0.8); fig.savefig(out_path, transparent=True); plt.close(fig)
 
 
@@ -146,10 +146,10 @@ def make_daeun_timeline(daeun: dict, out_path: str, scores=None, ohengs=None, cu
         # 오행 색 상단 띠
         ax.add_patch(plt.Rectangle((i - 0.44, 0.78), 0.88, 0.08, facecolor=top, zorder=3))
         ax.text(i, 0.60, pillars[i] if i < len(pillars) else "", ha="center", va="center",
-                fontsize=18, fontweight="bold", color=INK, zorder=4)
-        ax.text(i, 0.20, f"{ages[i]}세~", ha="center", va="center", fontsize=13, fontweight="bold", color=SEAL)
+                fontsize=24, fontweight="bold", color=INK, zorder=4)
+        ax.text(i, 0.20, f"{ages[i]}세~", ha="center", va="center", fontsize=17, fontweight="bold", color=SEAL)
         if is_cur:
-            ax.text(i, 0.93, "현재", ha="center", va="center", fontsize=12, fontweight="bold", color=SEAL)
+            ax.text(i, 0.93, "현재", ha="center", va="center", fontsize=16, fontweight="bold", color=SEAL)
         # 운세지수 점
         if scores and i < len(scores):
             ax.plot(i, 0.30, "o", ms=11, color=_score_color(scores[i]), zorder=5,
@@ -177,19 +177,19 @@ def make_fortune_bars(labels, scores, out_path, title="운세 흐름", highlight
         b = ax.bar(i, s, color=col, width=0.66, zorder=3, alpha=(0.55 if past else 1.0))
         bars.append(b)
         ax.text(i, s + 1.5, str(int(s)), ha="center", va="bottom",
-                fontsize=13, fontweight="bold", color=("#AAB0B6" if past else INK))
+                fontsize=17, fontweight="bold", color=("#AAB0B6" if past else INK))
     # '최고'는 현재·미래(focus_from 이후) 구간에서만 표시
     if highlight_best and scores:
         cand = list(range(ff, n)) or list(range(n))
         bi = int(max(cand, key=lambda k: scores[k]))
         ax.text(bi, scores[bi] + 8, "앞으로 최고", ha="center", va="bottom",
-                fontsize=13, fontweight="bold", color=SEAL)
+                fontsize=17, fontweight="bold", color=SEAL)
     if ff > 0:
         ax.axvline(ff - 0.5, color=SEAL, lw=1.4, ls=":", zorder=1)
-        ax.text(ff - 0.5, 103, "지금부터", ha="center", va="bottom", fontsize=11.5, fontweight="bold", color=SEAL)
+        ax.text(ff - 0.5, 103, "지금부터", ha="center", va="bottom", fontsize=15, fontweight="bold", color=SEAL)
     ax.set_ylim(0, 108)
-    ax.set_xticks(range(n)); ax.set_xticklabels(labels, fontsize=14, fontweight="bold")
-    ax.set_yticks([]); ax.set_title(title, fontsize=18, fontweight="bold", color=SEAL, pad=12)
+    ax.set_xticks(range(n)); ax.set_xticklabels(labels, fontsize=18, fontweight="bold")
+    ax.set_yticks([]); ax.set_title(title, fontsize=24, fontweight="bold", color=SEAL, pad=12)
     ax.spines[["top", "right", "left"]].set_visible(False)
     ax.axhline(60, color=LINE, lw=1.0, ls="--", zorder=0)
     ax.set_axisbelow(True)
@@ -217,14 +217,14 @@ def make_life_curve(ages, scores, out_path, cur_age=None):
         cand = fut if fut else list(range(len(scores)))
         bi = int(max(cand, key=lambda k: scores[k]))
         ax.annotate("앞으로의 전성기", (ages[bi], scores[bi]), textcoords="offset points", xytext=(0, 15),
-                    ha="center", fontsize=14, fontweight="bold", color=SEAL)
+                    ha="center", fontsize=18, fontweight="bold", color=SEAL)
     if cur_age is not None:
         ax.axvline(cur_age, color=SEAL, lw=1.8, ls=":", zorder=2)
-        ax.text(cur_age, 104, "현재", ha="center", fontsize=12.5, fontweight="bold", color=SEAL)
+        ax.text(cur_age, 104, "현재", ha="center", fontsize=16, fontweight="bold", color=SEAL)
     ax.set_ylim(35, 110); ax.set_yticks([])
-    ax.set_xlabel("나이(세)", fontsize=13, fontweight="bold", color=INK)
-    ax.tick_params(axis="x", labelsize=13)
-    ax.set_title("인생 운세 곡선 (회색=지나온 길 · 금색=앞으로의 길)", fontsize=16, fontweight="bold", color=SEAL, pad=12)
+    ax.set_xlabel("나이(세)", fontsize=17, fontweight="bold", color=INK)
+    ax.tick_params(axis="x", labelsize=17)
+    ax.set_title("인생 운세 곡선 (회색=지나온 길 · 금색=앞으로의 길)", fontsize=21, fontweight="bold", color=SEAL, pad=12)
     ax.spines[["top", "right", "left"]].set_visible(False)
     fig.tight_layout(pad=0.8); fig.savefig(out_path, transparent=True); plt.close(fig)
 
@@ -240,12 +240,12 @@ def make_radar(categories, scores, out_path):
     ax.set_theta_offset(math.pi / 2); ax.set_theta_direction(-1)
     ax.plot(angles, vals, color=SEAL, lw=2.6)
     ax.fill(angles, vals, color=SEAL, alpha=0.16)
-    ax.set_xticks(angles[:-1]); ax.set_xticklabels(categories, fontsize=15, fontweight="bold", color=INK)
+    ax.set_xticks(angles[:-1]); ax.set_xticklabels(categories, fontsize=20, fontweight="bold", color=INK)
     ax.set_ylim(0, 100); ax.set_yticks([25, 50, 75, 100])
-    ax.set_yticklabels(["25", "50", "75", "100"], fontsize=10, color=TOKENS["ink_soft"])
+    ax.set_yticklabels(["25", "50", "75", "100"], fontsize=14, color=TOKENS["ink_soft"])
     ax.grid(color=LINE, lw=0.8)
     for ang, v in zip(angles[:-1], scores):
-        ax.text(ang, v + 7, str(int(v)), ha="center", fontsize=12, fontweight="bold", color=SEAL)
+        ax.text(ang, v + 7, str(int(v)), ha="center", fontsize=16, fontweight="bold", color=SEAL)
     fig.tight_layout(pad=1.0); fig.savefig(out_path, transparent=True); plt.close(fig)
 
 
@@ -256,9 +256,9 @@ def make_monthly_calendar(wolun_list: list, out_path: str):
         r, c = divmod(idx, 4); ax = axes[r][c]
         color = OHENG_COLORS.get(item.get("oheng", "토"), GOLD)
         ax.add_patch(plt.Rectangle((0, 0), 1, 1, transform=ax.transAxes, facecolor=color, alpha=0.16, zorder=0))
-        ax.text(0.5, 0.74, f"{item['month']}월", ha="center", va="center", fontsize=13, fontweight="bold", color=INK, transform=ax.transAxes)
-        ax.text(0.5, 0.44, item.get("ganji", ""), ha="center", va="center", fontsize=11.5, color=color, fontweight="bold", transform=ax.transAxes)
-        ax.text(0.5, 0.16, item.get("sipseong", ""), ha="center", va="center", fontsize=9.5, color=TOKENS["ink_soft"], transform=ax.transAxes)
+        ax.text(0.5, 0.74, f"{item['month']}월", ha="center", va="center", fontsize=17, fontweight="bold", color=INK, transform=ax.transAxes)
+        ax.text(0.5, 0.44, item.get("ganji", ""), ha="center", va="center", fontsize=15, color=color, fontweight="bold", transform=ax.transAxes)
+        ax.text(0.5, 0.16, item.get("sipseong", ""), ha="center", va="center", fontsize=14, color=TOKENS["ink_soft"], transform=ax.transAxes)
         ax.set_xticks([]); ax.set_yticks([])
         for sp in ax.spines.values():
             sp.set_edgecolor(TOKENS["line"]); sp.set_linewidth(1.1)
@@ -275,8 +275,8 @@ def make_gunghap_gauge(score: int, grade: str, out_path: str):
     th2 = [math.pi * (1 - t / 100) for t in range(0, score + 1)]
     color = SEAL if score >= 80 else (GOLD if score >= 60 else "#7A7A7A")
     ax.plot([math.cos(t) for t in th2], [math.sin(t) for t in th2], color=color, lw=14, solid_capstyle="round")
-    ax.text(0, 0.42, f"{score}점", ha="center", va="center", fontsize=22, fontweight="bold", color=color)
-    ax.text(0, 0.12, f"{grade}급 궁합", ha="center", va="center", fontsize=12, fontweight="bold", color=TOKENS["ink_soft"])
+    ax.text(0, 0.42, f"{score}점", ha="center", va="center", fontsize=29, fontweight="bold", color=color)
+    ax.text(0, 0.12, f"{grade}급 궁합", ha="center", va="center", fontsize=16, fontweight="bold", color=TOKENS["ink_soft"])
     fig.tight_layout(); fig.savefig(out_path, transparent=True); plt.close(fig)
 
 
@@ -292,11 +292,11 @@ def make_oheng_bar(oheng_dist: dict, out_path: str):
     bars = ax.bar(OHENG_ORDER, values, color=colors, width=0.62, zorder=3)
     for rect, v in zip(bars, values):
         ax.text(rect.get_x()+rect.get_width()/2, rect.get_height()+0.08, str(v),
-                ha="center", va="bottom", fontsize=26, fontweight="bold", color=INK)
+                ha="center", va="bottom", fontsize=30, fontweight="bold", color=INK)
     ax.set_ylim(0, max(values+[1])+1.3)
-    ax.set_title("오행 개수 분포", fontsize=26, fontweight="bold", color=SEAL, pad=16)
+    ax.set_title("오행 개수 분포", fontsize=30, fontweight="bold", color=SEAL, pad=16)
     ax.spines[["top","right","left"]].set_visible(False)
-    ax.set_yticks([]); ax.tick_params(axis="x", labelsize=27)
+    ax.set_yticks([]); ax.tick_params(axis="x", labelsize=30)
     ax.set_axisbelow(True); ax.grid(axis="y", color=LINE, linewidth=0.8, zorder=0)
     fig.tight_layout(pad=1.0); fig.savefig(out_path, transparent=True); plt.close(fig)
 
@@ -312,11 +312,11 @@ def make_oheng_donut(oheng_dist: dict, out_path: str):
     fig, ax = plt.subplots(figsize=(9.6, 6.8), dpi=170); fig.patch.set_alpha(0)
     ax.pie([v for _,v,_ in non_zero], colors=[c for _,_,c in non_zero],
            startangle=90, counterclock=False, autopct="%1.0f%%", pctdistance=0.80,
-           textprops=dict(fontsize=20, fontweight="bold", color="white"),
+           textprops=dict(fontsize=26, fontweight="bold", color="white"),
            wedgeprops=dict(width=0.42, edgecolor="white", linewidth=2.4), radius=1.15)
-    ax.set_title("오행 비율", fontsize=26, fontweight="bold", color=SEAL, pad=16)
+    ax.set_title("오행 비율", fontsize=30, fontweight="bold", color=SEAL, pad=16)
     ax.legend([f"{o} {v}개 ({v/total*100:.0f}%)" for o,v,_ in non_zero],
-              loc="center", bbox_to_anchor=(0.5,-0.10), ncol=3, fontsize=17,
+              loc="center", bbox_to_anchor=(0.5,-0.10), ncol=3, fontsize=22,
               frameon=False, handlelength=1.1, handletextpad=0.5, columnspacing=1.2,
               labelcolor=[c for _,_,c in non_zero])
     ax.set_aspect("equal")
@@ -331,7 +331,7 @@ def make_oheng_pentagon(oheng_dist: dict, out_path: str, ilgan=None):
     fig, ax = plt.subplots(figsize=(9.8, 9.4), dpi=170); fig.patch.set_alpha(0)
     ax.set_xlim(-1.85, 1.85); ax.set_ylim(-1.75, 1.85); ax.set_aspect("equal"); ax.axis("off")
     title = ("나의 오행: " + str(ilgan)) if ilgan else "나의 오행 구성"
-    ax.text(-1.8, 1.7, title, fontsize=24, fontweight="bold", color=INK, ha="left", va="center")
+    ax.text(-1.8, 1.7, title, fontsize=30, fontweight="bold", color=INK, ha="left", va="center")
 
     total = sum(oheng_dist.get(o, 0) for o in OHENG_ORDER) or 1
     n = 5; off = math.pi / 2; R = 1.16; r_node = 0.42
@@ -364,11 +364,11 @@ def make_oheng_pentagon(oheng_dist: dict, out_path: str, ilgan=None):
     for o in OHENG_ORDER:
         x, y = pos[o]; v = oheng_dist.get(o, 0); pct = round(v / total * 100)
         ax.add_patch(plt.Circle((x, y), r_node, color=OHENG_COLORS[o], ec="white", lw=3.0, zorder=5))
-        ax.text(x, y + 0.09, o, ha="center", va="center", fontsize=23, fontweight="bold", color="white", zorder=6)
-        ax.text(x, y - 0.17, f"{pct}% · {v}개", ha="center", va="center", fontsize=12.5, fontweight="bold", color="white", zorder=6)
+        ax.text(x, y + 0.09, o, ha="center", va="center", fontsize=30, fontweight="bold", color="white", zorder=6)
+        ax.text(x, y - 0.17, f"{pct}% · {v}개", ha="center", va="center", fontsize=16, fontweight="bold", color="white", zorder=6)
     # 범례
     ax.annotate("", xy=(-1.42, 1.28), xytext=(-1.78, 1.28), arrowprops=dict(arrowstyle="-|>", color=BLUE, lw=3.2))
-    ax.text(-1.34, 1.28, "상생 (서로 도와줌)", fontsize=12.5, va="center", color=INK, fontweight="bold")
+    ax.text(-1.34, 1.28, "상생 (서로 도와줌)", fontsize=16, va="center", color=INK, fontweight="bold")
     ax.annotate("", xy=(-1.42, 1.06), xytext=(-1.78, 1.06), arrowprops=dict(arrowstyle="-|>", color=RED, lw=3.2))
-    ax.text(-1.34, 1.06, "상극 (서로 눌러줌)", fontsize=12.5, va="center", color=INK, fontweight="bold")
+    ax.text(-1.34, 1.06, "상극 (서로 눌러줌)", fontsize=16, va="center", color=INK, fontweight="bold")
     fig.tight_layout(pad=0.8); fig.savefig(out_path, transparent=True); plt.close(fig)

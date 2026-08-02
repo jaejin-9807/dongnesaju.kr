@@ -46,9 +46,19 @@ app.use("/api/kakaopay", kakaopayRoutes);
 app.use("/api/naverpay", naverpayRoutes);
 
 function resolvePrice(productName) {
-  // 단품 운세풀이 29,800원 / 궁합(2인) 정가 59,600원 → 할인가 55,000원
-  // 이벤트 사주풀이 = 0원(SNS 무료 이벤트) / 단품 29,800원 / 궁합(2인) 할인가 55,000원
-  const PRICES = { "이벤트 사주풀이": 0, "프리미엄 사주풀이": 29800, "궁합사주": 55000 };
+  // 프리미엄(전체) 29,800원 / 궁합(2인) 할인가 55,000원 / 이벤트 0원
+  // 단품 집중풀이: 나의 사주팔자 9,900원 · 주제별 5,000원
+  const PRICES = {
+    "이벤트 사주풀이": 0,
+    "프리미엄 사주풀이": 29800,
+    "궁합사주": 55000,
+    "나의 사주팔자": 9900,
+    "재물운": 5000,
+    "건강운": 5000,
+    "부부·가족·인연운": 5000,
+    "인간관계·직장운": 5000,
+    "명예운": 5000,
+  };
   return productName in PRICES ? PRICES[productName] : 29800;
 }
 
@@ -87,6 +97,7 @@ function buildPdfMeta(order) {
   return {
     customerName: order.customerName || "의뢰인",
     reportType: isEvent ? "이벤트 무료 사주" : (isCouple ? "궁합 분석" : (order.orderName || "종합 사주 분석")),
+    product: order.orderName || "",   // 상품별 결과지 섹션 선택에 사용
     reportYear: Number(order.reportYear) || DEFAULT_REPORT_YEAR,
     orderId: order.orderId,
     calendarType: cal,

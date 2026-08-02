@@ -199,37 +199,50 @@ def _txt_factory(data):
 
 
 class ChapterRegistry:
-    """챕터를 등록하면서 목차(part/title/pgtoken)와 본문을 동시에 구성."""
+    """챕터를 등록하면서 목차(part/title/pgtoken)와 본문을 동시에 구성.
+    enabled=False 인 동안의 part/mark 는 무시되어(상품별 섹션 선택), 포함된 '장'만
+    1장·2장… 순서로 자동 재번호된다."""
     def __init__(self):
-        self.parts = []          # [(part_title, [(title, token)...])]
+        self.parts = []          # [[chapter_no|None, part_title, [(title, token)...]]]
         self._cur_part = None
         self.counter = 0
+        self.chapno = 0          # 순차 장 번호(포함된 PART만 증가)
+        self.enabled = True
 
-    def part(self, title):
-        self._cur_part = (title, [])
+    def part(self, title, numbered=False):
+        if not self.enabled:
+            self._cur_part = None
+            return None
+        no = None
+        if numbered:
+            self.chapno += 1
+            no = self.chapno
+        self._cur_part = [no, title, []]
         self.parts.append(self._cur_part)
+        return no
 
     def mark(self, title):
         """새 챕터 시작 마커 HTML 반환 + 목차에 등록."""
+        if not self.enabled:
+            return ""
         self.counter += 1
         token = f"CH{self.counter:02d}"
         if self._cur_part is None:
             self.part("")
-        self._cur_part[1].append((title, token))
+        self._cur_part[2].append((title, token))
         # 보이지 않는 페이지 마커(화면엔 안 보이지만 텍스트 추출은 됨: 배경색과 동일한 아이보리)
         return f"<span class='pgmark' style='font-size:5pt;color:#F7F0E1;line-height:0'>{token}MARK</span>"
 
     def toc_html(self):
         # 목차는 '1장 한 줄' 형태로 간결하게. (PART 헤더+챕터 제목 중복 제거)
         rows = ["<div class='toc chapter'><h1>차 례</h1>"]
-        for part_title, entries in self.parts:
+        for no, part_title, entries in self.parts:
             if not entries:
                 continue
             pt = plain(part_title or "").strip()
-            m = _re.match(r"PART\s*(\d+)\.?\s*(.*)", pt)
-            if m:
-                num = f"{int(m.group(1))}장"
-                title = (m.group(2).strip() or plain(entries[0][0]).strip())
+            if no is not None:
+                num = f"{no}장"
+                title = pt or plain(entries[0][0]).strip()
             elif "부록" in pt:
                 num = "부록"
                 title = "용어 설명과 안내"
@@ -249,7 +262,10 @@ class ChapterRegistry:
 
 def _p(text):
     # 문서 형식 톤(~합니다)을 유지하고, 어려운 용어만 쉬운 말로 바꾼다. (구어체 어미 변환은 하지 않음)
-    return f"<p class='body-text'>{esc(_simplify(plain(text)))}</p>"
+    s = esc(_simplify(plain(text)))
+    # 본문에 의도적으로 넣은 강조 태그(<b>)만 다시 살린다 (esc 로 글자가 되어 노출되는 버그 방지)
+    s = s.replace("&lt;b&gt;", "<b>").replace("&lt;/b&gt;", "</b>")
+    return f"<p class='body-text'>{s}</p>"
 
 
 def _chapter_head(reg, num_label, title, sub="", new_page=False):
@@ -266,6 +282,68 @@ def _chapter_head(reg, num_label, title, sub="", new_page=False):
     return (f"{divider}<div class='{cls}'>{mark}"
             f"<div class='chapter-head'><div class='chapter-num'>{esc(num_label)}</div>"
             f"<div class='chapter-title'>{esc(plain(title))}</div>{sub_html}</div>")
+
+
+def _chapter_head_no(reg, no, title, sub="", new_page=True):
+    """상품별 순차 장 번호(no)로 '장 구분 페이지 + 챕터 머리글'을 만든다."""
+    mark = reg.mark(title)
+    sub_html = f"<div class='chapter-sub'>{esc(plain(sub))}</div>" if sub else ""
+    cls = "chapter newpage" if new_page else "chapter"
+    divider = ""
+    if new_page:
+        divider = (f"<div class='chapter-divider'>"
+                   f"<div class='cd-badge'>{no}장</div>"
+                   f"<div class='cd-title'>{esc(plain(title))}</div></div>")
+    return (f"{divider}<div class='{cls}'>{mark}"
+            f"<div class='chapter-head'><div class='chapter-num'>{no}장</div>"
+            f"<div class='chapter-title'>{esc(plain(title))}</div>{sub_html}</div>")
+
+
+# 상품명 -> 포함할 본문 모듈(None 이면 프리미엄/궁합처럼 전체 수록)
+def _product_modules(name):
+    n = _re.sub(r"[\s·・.,]", "", str(name or ""))
+    TABLE = {
+        "나의사주팔자": {"P1", "P2", "P9", "P10"},        # 종합 요약판(≤40p)
+        "재물운": {"P1", "P4"},                            # 단일 주제(≤20p)
+        "건강운": {"P1", "P6"},
+        "부부가족인연운": {"P1", "P3"},
+        "인간관계직장운": {"P1", "P7", "P5"},
+        "명예운": {"P1", "P5"},
+    }
+    for key, mods in TABLE.items():
+        if n == key or n.startswith(key):
+            return mods
+    return None  # 프리미엄 사주풀이 · 궁합사주 · 이벤트 = 전체
+
+
+class _FilteredBody(list):
+    """현재 섹션(cur)이 선택된 모듈에 없으면 append 를 무시하는 본문 리스트."""
+    cur = None
+    modules = None  # None 이면 전체 수록
+    def append(self, x):
+        if self.modules is not None and self.cur is not None and self.cur not in self.modules:
+            return
+        super().append(x)
+
+
+def _dedup_document(html):
+    """공용 fallback 문구 재사용으로 생기는 '동일 문단 중복' 및 빈 문단·고아 소제목을 제거."""
+    seen = set()
+
+    def _repl(m):
+        key = _re.sub(r"\s+", " ", m.group(1)).strip()
+        if not key:
+            return ""            # 빈 문단 제거
+        if key in seen:
+            return ""            # 중복 문단 제거(첫 번째만 유지)
+        seen.add(key)
+        return m.group(0)
+
+    html = _re.sub(r"<p class='body-text'>(.*?)</p>", _repl, html, flags=_re.S)
+    # 문단이 제거돼 남은 '고아 소제목'(뒤에 소제목/장이 바로 오는 경우) 정리
+    html = _re.sub(r"<div class='sub-title'>[^<]*</div>\s*(?=<div class='sub-title'>)", "", html)
+    html = _re.sub(r"<div class='sub-title'>[^<]*</div>\s*(?=<div class='chapter)", "", html)
+    return html
 
 
 def _section_block(title, body, footnote=True):
@@ -364,7 +442,32 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
     birth_line = _birth_line_str(b, data, calendar_type, time_str)
 
     reg = ChapterRegistry()
-    body_parts = []
+    # ---- 상품별 수록 모듈 선택 (None = 전체) ----
+    MODULES = _product_modules(meta.get("product"))
+    body_parts = _FilteredBody()
+    body_parts.modules = MODULES
+    # 단일 주제 상품(재물/건강/부부/인간관계/명예)은 1장을 '기본요약(명식·오행)'만 담아 20p 이내로.
+    # (프리미엄=전체, 나의 사주팔자=P2 포함 → 성격/강점 등 전체 1장 수록)
+    p1_lite = (MODULES is not None) and ("P2" not in MODULES)
+    compact = (MODULES is not None)   # 프리미엄/궁합 외(단품·요약판)은 분량을 줄여 페이지 상한을 지킨다
+
+    def want(key):
+        return MODULES is None or key in MODULES
+
+    def chapter(key, title, sub="", new_page=True):
+        """PART 챕터 시작: 선택된 모듈이면 순차 장 번호로 머리글을 넣고, 아니면 건너뛴다."""
+        body_parts.cur = key
+        on = want(key)
+        reg.enabled = on
+        if not on:
+            return
+        no = reg.part(plain(title), numbered=True)
+        body_parts.append(_chapter_head_no(reg, no, title, sub, new_page))
+
+    def _reset_always_on():
+        """번호 없는 공용 섹션(맺음말·부록·궁합) 앞에서 필터/레지스트리를 원상 복구."""
+        body_parts.cur = None
+        reg.enabled = True
 
     # ===================== 1. 표지 =====================
     cover = f"""
@@ -402,29 +505,31 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
     body_parts.append("{{TOC}}")
 
     # ===================== 핵심 요약 =====================
-    reg.part("한눈에 보는 핵심")
-    body_parts.append(_chapter_head(reg, "요약", "한눈에 보는 핵심 운세 요약",
-                                    f"{customer_name} 님 사주의 큰 그림을 한 장에 담았습니다.", new_page=True))
-    summary_cells = [
-        ("나를 상징하는 글자", esc(data.get("ilgan", "-"))),
-        ("타고난 성향의 틀", esc(plain(gyeokguk.get("name", "-")))),
-        ("나에게 필요한 기운", esc(yongsin.get("yongsin", "-"))),
-        ("가장 강한 오행", esc(most_oheng or "-")),
-        ("부족한 오행", esc(", ".join(missing) if missing else "없음")),
-        ("오행 균형도", esc(balance)),
-    ]
-    if gunghap:
-        summary_cells.append(("궁합 점수", f"{esc(gunghap.get('score','-'))}점 ({esc(gunghap.get('grade','-'))}급)"))
-    cells_html = "".join(
-        f"<div class='cell'><div class='lbl'>{lbl}</div><div class='val'>{val}</div></div>"
-        for lbl, val in summary_cells)
-    body_parts.append(f"<div class='summary-grid'>{cells_html}</div>")
-    if chart_paths.get("radar"):
-        body_parts.append(f"<div class='chart-wrap'><img src='{chart_paths['radar']}' style='width:74%'/>"
-                          "<div class='chart-cap'>재물·직업·연애·건강·귀인 — 5대 운세 종합 지수</div></div>")
-    body_parts.append(_section_block("총평 한 문장",
-        txt("사주원국해설", txt("ohengBasic",
-            f"{customer_name} 님은 {plain(gyeokguk.get('name',''))}의 틀 위에서 {most_oheng} 기운이 두드러지는 사주입니다."))))
+    # 단일 주제 상품은 1장(기본요약)이 곧 요약이므로, 5대 운세 종합요약 페이지는 생략한다.
+    if not p1_lite:
+        reg.part("한눈에 보는 핵심")
+        body_parts.append(_chapter_head(reg, "요약", "한눈에 보는 핵심 운세 요약",
+                                        f"{customer_name} 님 사주의 큰 그림을 한 장에 담았습니다.", new_page=True))
+        summary_cells = [
+            ("나를 상징하는 글자", esc(data.get("ilgan", "-"))),
+            ("타고난 성향의 틀", esc(plain(gyeokguk.get("name", "-")))),
+            ("나에게 필요한 기운", esc(yongsin.get("yongsin", "-"))),
+            ("가장 강한 오행", esc(most_oheng or "-")),
+            ("부족한 오행", esc(", ".join(missing) if missing else "없음")),
+            ("오행 균형도", esc(balance)),
+        ]
+        if gunghap:
+            summary_cells.append(("궁합 점수", f"{esc(gunghap.get('score','-'))}점 ({esc(gunghap.get('grade','-'))}급)"))
+        cells_html = "".join(
+            f"<div class='cell'><div class='lbl'>{lbl}</div><div class='val'>{val}</div></div>"
+            for lbl, val in summary_cells)
+        body_parts.append(f"<div class='summary-grid'>{cells_html}</div>")
+        if chart_paths.get("radar"):
+            body_parts.append(f"<div class='chart-wrap'><img src='{chart_paths['radar']}' style='width:74%'/>"
+                              "<div class='chart-cap'>재물·직업·연애·건강·귀인 — 5대 운세 종합 지수</div></div>")
+        body_parts.append(_section_block("총평 한 문장",
+            txt("사주원국해설", txt("ohengBasic",
+                f"{customer_name} 님은 {plain(gyeokguk.get('name',''))}의 틀 위에서 {most_oheng} 기운이 두드러지는 사주입니다."))))
 
     # ---- 공용 파생 문구(시기 등) ----
     _ds = compute_daeun_scores(data)
@@ -454,9 +559,8 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
         body_parts.append(f"<div class='sub-title'>{esc(t)}</div>")
 
     # ===================== PART 1 =====================
-    reg.part("PART 1. 나의 사주팔자 기본 분석")
-    body_parts.append(_chapter_head(reg, "PART 1", "나의 사주팔자 기본 분석",
-                                    "내 사주의 구성과 타고난 성격·기질을 살펴봅니다.", new_page=True))
+    chapter("P1", "나의 사주팔자 기본 분석",
+            "내 사주의 구성과 타고난 성격·기질을 살펴봅니다.")
     _sub("사주 원국과 음양오행 구성")
     body_parts.append(_pillars_table())
     body_parts.append(f"<p class='body-text'>나를 상징하는 글자는 <b>{esc(data.get('ilgan',''))}</b> 입니다. "
@@ -484,7 +588,7 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
             f"<div class='sub-title' style='text-align:center;border:none;padding:0;color:#8B2E2E;'>■ 오행 개수 분포 — 보는 법</div>"
             f"<p class='body-text'>이 막대그래프는 내 사주 여덟 글자를 목·화·토·금·수 다섯 기운으로 나눠 각각 몇 개인지 센 것입니다. 막대가 높을수록 그 기운이 많다는 뜻이에요. 특정 기운이 유독 높으면 그 성향이 강하게 나타나고, 0개이면 그 기운이 부족합니다. {customer_name} 님은 '{_strong}' 기운이 가장 많고, 부족한 기운은 '{_missing_str}' 입니다. 많은 기운은 장점으로 살리고, 부족한 기운은 생활 속에서 채워 균형을 맞추는 것이 좋습니다.</p>"
             "</div>")
-    if chart_paths.get('oheng_donut'):
+    if (not p1_lite) and chart_paths.get('oheng_donut'):
         body_parts.append(
             "<div class='avoid-break' style='margin:4mm 0 2mm;'>"
             f"<div class='chart-wrap' style='margin:2mm 0;'><img src='{chart_paths['oheng_donut']}' style='width:72%'/></div>"
@@ -499,26 +603,28 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
             f"<p class='body-text'>이 오각형은 다섯 기운이 서로 낳아주며 이어지는 순서(목→화→토→금→수→목)를 원으로 그린 것입니다. 화살표는 '상생', 즉 앞의 기운이 뒤의 기운을 도와주는 흐름이에요. 각 원 안의 숫자는 내 사주가 가진 그 기운의 개수입니다. 숫자가 많은 자리는 힘이 넘치고, 0인 자리는 흐름이 끊기기 쉬운 곳입니다. 부족한 기운을 채우면 이 순환이 매끄럽게 돌아, 운의 흐름도 함께 좋아집니다.</p>"
             "</div>")
     body_parts.append(_p(txt("p1_구성", txt("사주원국해설", txt("ohengBasic")))))
-    _sub("타고난 성격과 기질")
-    if chart_paths.get("sipseong"):
-        body_parts.append(f"<div class='chart-wrap'><img src='{chart_paths['sipseong']}' style='width:100%'/></div>")
-    body_parts.append(_p(txt("p1_성격", txt("타고난성향", txt("십성해설")))))
+    # ---- 강한/부족한 기운(오행 강약)은 기본요약에도 포함 ----
     _sub("나에게 부족하거나 강한 기운")
     body_parts.append(_grid2("가장 강한 기운", most_oheng or "-", "부족한 기운", ", ".join(missing) if missing else "없음"))
     body_parts.append(_p(txt("p1_강약", txt("오행해설",
         f"{customer_name} 님은 {most_oheng} 기운이 강하고 {', '.join(missing) if missing else '특정 기운이 부족하지 않은'} 편입니다. 강한 기운은 살리고 부족한 기운은 채우면 좋습니다."))))
-    _sub("삶에서 반복되기 쉬운 행동 유형")
-    body_parts.append(_p(txt("p1_반복", txt("십성해설",
-        "익숙한 방식으로 문제를 풀려는 경향이 반복될 수 있습니다. 중요한 순간에는 평소와 다른 선택지도 함께 살펴보면 도움이 됩니다."))))
-    _sub("나의 강점과 보완해야 할 부분")
-    body_parts.append(f"<div class='callout'><div class='callout-label'>{esc(plain(gyeokguk.get('name','')))}</div>"
-                      f"<div>{esc(plain(gyeokguk.get('description','')))}</div></div>")
-    body_parts.append(_p(txt("p1_강점보완", txt("격국해설", txt("타고난성향")))))
+    # ---- 성격·행동유형·강점보완 등 심화는 전체풀이/종합요약판에만 (단일 주제 상품은 생략) ----
+    if not p1_lite:
+        _sub("타고난 성격과 기질")
+        if chart_paths.get("sipseong"):
+            body_parts.append(f"<div class='chart-wrap'><img src='{chart_paths['sipseong']}' style='width:100%'/></div>")
+        body_parts.append(_p(txt("p1_성격", txt("타고난성향", txt("십성해설")))))
+        _sub("삶에서 반복되기 쉬운 행동 유형")
+        body_parts.append(_p(txt("p1_반복", txt("십성해설",
+            "익숙한 방식으로 문제를 풀려는 경향이 반복될 수 있습니다. 중요한 순간에는 평소와 다른 선택지도 함께 살펴보면 도움이 됩니다."))))
+        _sub("나의 강점과 보완해야 할 부분")
+        body_parts.append(f"<div class='callout'><div class='callout-label'>{esc(plain(gyeokguk.get('name','')))}</div>"
+                          f"<div>{esc(plain(gyeokguk.get('description','')))}</div></div>")
+        body_parts.append(_p(txt("p1_강점보완", txt("격국해설", txt("타고난성향")))))
 
     # ===================== PART 2 =====================
-    reg.part("PART 2. 인생의 흐름과 전환점")
-    body_parts.append(_chapter_head(reg, "PART 2", "인생의 흐름과 전환점",
-                                    "언제 오르고 언제 쉬어가는지, 인생의 결을 살펴봅니다.", new_page=True))
+    chapter("P2", "인생의 흐름과 전환점",
+            "언제 오르고 언제 쉬어가는지, 인생의 결을 살펴봅니다.")
     if chart_paths.get("life_curve"):
         body_parts.append(f"<div class='chart-wrap'><img src='{chart_paths['life_curve']}' style='width:100%'/>"
                           "<div class='chart-cap'>나이에 따른 운세 흐름 — 높을수록 기운이 좋은 시기</div></div>")
@@ -567,9 +673,8 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
     # ===================== PART 3 =====================
     if is_senior:
         # 60대 이상: 새 연애보다 부부·동반자·가족 관계 중심
-        reg.part("PART 3. 부부 · 가족 · 인연운")
-        body_parts.append(_chapter_head(reg, "PART 3", "부부 · 가족 · 인연운",
-                                        "배우자·자녀와의 인연, 가족 관계의 결을 살펴봅니다.", new_page=True))
+        chapter("P3", "부부 · 가족 · 인연운",
+                "배우자·자녀와의 인연, 가족 관계의 결을 살펴봅니다.")
         _sub("관계에서 나타나는 나의 성향")
         body_parts.append(_p(txt("p3_성향", txt("연애운인연운"))))
         _sub("배우자·가족과의 인연의 특징")
@@ -583,9 +688,8 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
         body_parts.append(_p("자녀·손주·배우자에게 '고맙다', '수고했다'는 말을 자주 건네실수록 관계의 온기가 오래 갑니다. 베풀고 나누는 마음이 곧 노년의 큰 복입니다."))
     elif _is_couple:
         # 40~50대: 배우자·가정운 중심
-        reg.part("PART 3. 배우자 · 가정 · 인연운")
-        body_parts.append(_chapter_head(reg, "PART 3", "배우자 · 가정 · 인연운",
-                                        "배우자와의 관계와 가정운의 흐름을 살펴봅니다.", new_page=True))
+        chapter("P3", "배우자 · 가정 · 인연운",
+                "배우자와의 관계와 가정운의 흐름을 살펴봅니다.")
         _sub("관계에서 나타나는 나의 성향")
         body_parts.append(_p(txt("p3_성향", txt("연애운인연운"))))
         _sub("배우자와 잘 맞는 부분과 보완할 부분")
@@ -600,9 +704,8 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
             "상대가 힘을 얻는 부분을 이해하고 배려하는 대화를 나누면 관계가 오래 갑니다. 고마움은 자주, 구체적으로 표현하세요.")))
     else:
         # 20~40대: 연애·결혼운 중심
-        reg.part("PART 3. 연애 · 결혼 · 배우자운")
-        body_parts.append(_chapter_head(reg, "PART 3", "연애 · 결혼 · 배우자운",
-                                        "나의 연애 성향과 인연의 시기를 살펴봅니다.", new_page=True))
+        chapter("P3", "연애 · 결혼 · 배우자운",
+                "나의 연애 성향과 인연의 시기를 살펴봅니다.")
         _sub("연애할 때 나타나는 성향")
         body_parts.append(_p(txt("p3_성향", txt("연애운인연운"))))
         _sub("나와 잘 맞는 상대의 특징")
@@ -617,9 +720,8 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
             "상대가 힘을 얻는 부분을 이해하고 배려하는 대화를 나누면 관계가 오래 갑니다. 고마움은 자주, 구체적으로 표현하세요.")))
 
     # ===================== PART 4 =====================
-    reg.part("PART 4. 재물운과 경제 흐름")
-    body_parts.append(_chapter_head(reg, "PART 4", "재물운과 경제 흐름",
-                                    "돈이 들어오는 때와 지켜야 할 때를 살펴봅니다.", new_page=True))
+    chapter("P4", "재물운과 경제 흐름",
+            "돈이 들어오는 때와 지켜야 할 때를 살펴봅니다.")
     _sub("타고난 재물운의 특징")
     body_parts.append(_p(txt("p4_특징", txt("재물운"))))
     _sub("돈을 모으는 방식과 소비 성향")
@@ -635,9 +737,8 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
 
     # ===================== PART 5 (나이대별 맞춤) =====================
     if _sk == "20":
-        reg.part("PART 5. 진로 · 취업 · 성장운")
-        body_parts.append(_chapter_head(reg, "PART 5", "진로 · 취업 · 성장운",
-                                        "나에게 맞는 길과 첫 도약의 시기를 살펴봅니다.", new_page=True))
+        chapter("P5", "진로 · 취업 · 성장운",
+                "나에게 맞는 길과 첫 도약의 시기를 살펴봅니다.")
         _sub("적성과 강점을 살릴 수 있는 분야")
         body_parts.append(_p(txt("p5_적성", txt("직장운이직운승진운"))))
         _sub("진로 방향과 나에게 유리한 길")
@@ -647,9 +748,8 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
         _sub("성장 가능성을 높이는 전략")
         body_parts.append(_p("지금은 넓게 경험하며 나만의 강점을 만드는 시기입니다. 한 분야에 깊이를 더해 두면 30대에 크게 도약할 수 있습니다. 조급함보다 방향을 정하는 것이 먼저입니다."))
     elif _sk in ("30", "40"):
-        reg.part("PART 5. 직업 · 사업 · 성공운")
-        body_parts.append(_chapter_head(reg, "PART 5", "직업 · 사업 · 성공운",
-                                        "나에게 맞는 일과 성공의 방향을 살펴봅니다.", new_page=True))
+        chapter("P5", "직업 · 사업 · 성공운",
+                "나에게 맞는 일과 성공의 방향을 살펴봅니다.")
         _sub("적성과 강점을 살릴 수 있는 분야")
         body_parts.append(_p(txt("p5_적성", txt("직장운이직운승진운"))))
         _sub("직장과 사업 중 나에게 유리한 방향")
@@ -663,9 +763,8 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
         body_parts.append(_p(txt("p5_전략",
             "한 분야에서 확실한 강점을 만든 뒤, 좋은 시기에 과감히 승부를 거는 전략이 잘 맞습니다. 혼자보다 귀인과 함께할 때 성과가 커집니다.")))
     elif _sk == "50":
-        reg.part("PART 5. 직업 · 자산 · 인생 2막")
-        body_parts.append(_chapter_head(reg, "PART 5", "직업 · 자산 · 인생 2막",
-                                        "지금의 안정과 다음 인생 2막 준비를 살펴봅니다.", new_page=True))
+        chapter("P5", "직업 · 자산 · 인생 2막",
+                "지금의 안정과 다음 인생 2막 준비를 살펴봅니다.")
         _sub("경험과 강점을 살릴 수 있는 분야")
         body_parts.append(_p(txt("p5_적성", txt("직장운이직운승진운"))))
         _sub("자리 지키기와 인생 2막 사이의 방향")
@@ -675,9 +774,8 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
         _sub("50대의 현명한 전략")
         body_parts.append(_p("건강을 챙기며 자산을 지키고, 다음 20~30년을 내다보며 씀씀이와 관계를 정돈하는 것이 지금의 가장 큰 성공입니다. 조급한 확장보다 안정과 준비가 힘이 됩니다."))
     elif _sk == "60":
-        reg.part("PART 5. 사회활동 · 명예 · 자산운")
-        body_parts.append(_chapter_head(reg, "PART 5", "사회활동 · 명예 · 자산운",
-                                        "은퇴 이후의 활동과 보람, 자산 관리를 살펴봅니다.", new_page=True))
+        chapter("P5", "사회활동 · 명예 · 자산운",
+                "은퇴 이후의 활동과 보람, 자산 관리를 살펴봅니다.")
         _sub("경륜을 살릴 수 있는 활동")
         body_parts.append(_p(txt("p5_적성", txt("직장운이직운승진운"))))
         _sub("보람과 인정을 얻기 좋은 방향")
@@ -689,9 +787,8 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
         _sub("지금 나이에 맞는 현명한 전략")
         body_parts.append(_p("건강을 최우선으로 두고, 가진 것을 지키며 가족·이웃과 나누는 것이 지금 시기의 가장 큰 성공입니다. 무리한 확장보다 마음의 평안과 관계의 온기를 챙기실 때 삶이 더욱 넉넉해집니다."))
     else:  # 70, 80
-        reg.part("PART 5. 건강 · 여가 · 나눔운")
-        body_parts.append(_chapter_head(reg, "PART 5", "건강 · 여가 · 나눔운",
-                                        "건강하게 누리고 나누며 보내는 흐름을 살펴봅니다.", new_page=True))
+        chapter("P5", "건강 · 여가 · 나눔운",
+                "건강하게 누리고 나누며 보내는 흐름을 살펴봅니다.")
         _sub("무리하지 않고 이어가기 좋은 활동")
         body_parts.append(_p("몸과 마음이 편안한 취미·산책·모임처럼 즐거움을 주는 활동이 가장 잘 맞습니다. 오랜 경험에서 나오는 지혜를 가족과 이웃에게 들려주시는 것만으로도 큰 나눔이 됩니다."))
         _sub("좋은 기운과 좋은 소식이 따르는 시기")
@@ -702,9 +799,8 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
         body_parts.append(_p("건강과 마음의 평안, 그리고 가족·이웃과 나누는 정이 지금 시기의 가장 큰 복입니다. 그동안 잘 걸어오신 삶 자체가 충분히 훌륭하니, 이제는 편안히 누리셔도 됩니다."))
 
     # ===================== PART 6 =====================
-    reg.part("PART 6. 건강과 생활관리")
-    body_parts.append(_chapter_head(reg, "PART 6", "건강과 생활관리",
-                                    "타고난 체질과 건강을 챙길 시기를 살펴봅니다.", new_page=True))
+    chapter("P6", "건강과 생활관리",
+            "타고난 체질과 건강을 챙길 시기를 살펴봅니다.")
     _sub("사주로 살펴보는 타고난 체질 경향")
     body_parts.append(_p(txt("p6_체질", txt("건강운"))))
     _sub("생활습관에서 보완할 부분")
@@ -722,9 +818,8 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
                       "<div class='disclaimer'>건강 관련 내용은 명리학적 참고사항이며, 의료 진단을 대신하지 않습니다.</div></div>")
 
     # ===================== PART 7 =====================
-    reg.part("PART 7. 인간관계와 귀인운")
-    body_parts.append(_chapter_head(reg, "PART 7", "인간관계와 귀인운",
-                                    "나를 돕는 사람과 관계의 결을 살펴봅니다.", new_page=True))
+    chapter("P7", "인간관계와 귀인운",
+            "나를 돕는 사람과 관계의 결을 살펴봅니다.")
     _sub("나에게 도움을 주는 귀인의 특징")
     body_parts.append(_p(txt("p7_귀인", txt("귀인운", txt("대인관계운")))))
     if sinsal:
@@ -739,9 +834,8 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
         "에너지를 크게 빼앗는 관계, 돈이 얽힌 관계는 처음에 기준을 분명히 하세요. 어렵더라도 초반에 선을 정하면 뒤탈이 적습니다.")))
 
     # ===================== PART 8 =====================
-    reg.part("PART 8. 운의 흐름을 활용하는 방법")
-    body_parts.append(_chapter_head(reg, "PART 8", "운의 흐름을 활용하는 방법",
-                                    "부족한 기운을 채우고 운을 성과로 연결하는 실천법입니다.", new_page=True))
+    chapter("P8", "운의 흐름을 활용하는 방법",
+            "부족한 기운을 채우고 운을 성과로 연결하는 실천법입니다.")
     _sub("부족한 오행을 보완하는 생활방식")
     if missing:
         for i, o in enumerate(missing):
@@ -766,27 +860,26 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
     body_parts.append(f"<div class='card'><table><tr><th>기간</th><th>실행 전략</th></tr>{rows}</table></div>")
 
     # ===================== PART 9 =====================
-    reg.part(f"PART 9. {report_year}년 월별 운세")
-    body_parts.append(_chapter_head(reg, "PART 9", f"{report_year}년 월별 운세",
-                                    "1월부터 12월까지, 달마다의 흐름을 살펴봅니다.", new_page=True))
+    chapter("P9", f"{report_year}년 월별 운세",
+            "1월부터 12월까지, 달마다의 흐름을 살펴봅니다.")
     if chart_paths.get("monthly_bars"):
         body_parts.append(f"<div class='chart-wrap'><img src='{chart_paths['monthly_bars']}' style='width:100%'/>"
                           "<div class='chart-cap'>월별 운세 지수 — 높을수록 기운이 좋은 달</div></div>")
     body_parts.append(_grid2("기회가 커지는 달", _op, "계약·재물·관계를 주의할 달", _ca))
     if chart_paths.get("monthly"):
         body_parts.append(f"<div class='chart-wrap'><img src='{chart_paths['monthly']}' style='width:100%'/></div>")
-    _sub("1월부터 12월까지 월별 운의 흐름")
-    for w in wolun:
-        key = f"{w['month']}월운세"
-        body = txt(key, w.get("keyword", ""))
-        body_parts.append(f"<div class='sub-title'>{w['month']}월 — {esc(w.get('ganji',''))}</div>{_p(body)}")
+    if not compact:
+        _sub("1월부터 12월까지 월별 운의 흐름")
+        for w in wolun:
+            key = f"{w['month']}월운세"
+            body = txt(key, w.get("keyword", ""))
+            body_parts.append(f"<div class='sub-title'>{w['month']}월 — {esc(w.get('ganji',''))}</div>{_p(body)}")
     _sub("월별로 집중하면 좋은 행동 방향")
     body_parts.append(_p(f"기회가 커지는 {_op}에는 새로운 시도와 중요한 결정을, {_ca}에는 점검과 마무리에 집중하세요. 매달 초 그 달의 목표 하나를 정해 두면 흐름을 타기 쉽습니다."))
 
     # ===================== PART 10 =====================
-    reg.part("PART 10. 앞으로 10년의 운세 분석")
-    body_parts.append(_chapter_head(reg, "PART 10", "앞으로 10년의 운세 분석",
-                                    "다가올 10년의 큰 흐름과 전환점을 살펴봅니다.", new_page=True))
+    chapter("P10", "앞으로 10년의 운세 분석",
+            "다가올 10년의 큰 흐름과 전환점을 살펴봅니다.")
     if chart_paths.get("daeun_timeline"):
         body_parts.append(f"<div class='chart-wrap'><img src='{chart_paths['daeun_timeline']}' style='width:100%'/>"
                           "<div class='chart-cap'>대운 흐름 — 색 띠는 오행, 붉은 테두리는 현재 대운</div></div>")
@@ -807,6 +900,7 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
     body_parts.append(_p(txt("p10_전환", txt("평생운세총평"))))
 
     # ===================== 맺음말 (따뜻한 위로·응원) =====================
+    _reset_always_on()   # 상품별 필터 해제(맺음말·부록·궁합은 모든 상품에 공통 수록)
     _gname = esc(plain(gyeokguk.get("name", "")))
     body_parts.append(_chapter_head(reg, "맺음말", "마지막으로 드리는 말", new_page=True))
     body_parts.append(f"<div class='callout' style=\"border-left-color:{TOKENS['seal']};background:#FBEEE6;\">"
@@ -821,8 +915,10 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
     # ===================== 26. 용어사전 =====================
     reg.part("부록")
     body_parts.append(_chapter_head(reg, "부록 1", "쉽게 풀어 쓴 용어 설명", new_page=True))
-    glo_terms = ["일간", "오행", "십성", "용신", "희신", "기신", "격국", "신강", "신약",
-                 "대운", "세운", "월운", "지장간", "합", "충", "형", "12운성", "신살", "궁합", "택일"]
+    glo_terms = (["일간", "오행", "십성", "용신", "격국", "대운", "세운", "월운"]
+                 if compact else
+                 ["일간", "오행", "십성", "용신", "희신", "기신", "격국", "신강", "신약",
+                  "대운", "세운", "월운", "지장간", "합", "충", "형", "12운성", "신살", "궁합", "택일"])
     rows = "".join(f"<tr><td style='white-space:nowrap;font-weight:700'>{esc(t)}</td><td style='text-align:left'>{esc(plain(GLOSSARY[t]))}</td></tr>"
                    for t in glo_terms if t in GLOSSARY)
     body_parts.append(f"<div class='card'><table><tr><th style='width:22mm'>용어</th><th>풀이</th></tr>{rows}</table></div>")
@@ -840,18 +936,21 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
     if gunghap:
         _build_gunghap(reg, body_parts, gunghap, chart_paths, txt, customer_name, meta)
 
-    # ===================== 28. 마무리 =====================
-    reg.part("")
-    body_parts.append(_chapter_head(reg, "맺음말", "마무리하며", new_page=True))
-    body_parts.append(_p(f"{customer_name} 님의 사주에는 {most_oheng} 기운이라는 강점과, {esc(yongsin.get('yongsin',''))} 기운이라는 "
-                         "가장 중요한 열쇠가 담겨 있습니다. 사주는 정해진 운명이 아니라, 나를 더 잘 이해하고 삶의 흐름을 읽어 "
-                         "더 나은 선택을 돕는 지도입니다."))
-    body_parts.append(f"<div class='callout' style='text-align:center'><div class='callout-label' style='color:{TOKENS['gold']}'>{esc(brand)}</div>"
-                      f"<div>{report_year}년, {customer_name} 님의 앞날에 좋은 기운이 함께하기를 바랍니다.</div></div>")
+    # ===================== 28. 마무리 (전체풀이/궁합에만 — 단품·요약판은 맺음말 1개로 충분) =====================
+    if not compact:
+        reg.part("")
+        body_parts.append(_chapter_head(reg, "맺음말", "마무리하며", new_page=True))
+        body_parts.append(_p(f"{customer_name} 님의 사주에는 {most_oheng} 기운이라는 강점과, {esc(yongsin.get('yongsin',''))} 기운이라는 "
+                             "가장 중요한 열쇠가 담겨 있습니다. 사주는 정해진 운명이 아니라, 나를 더 잘 이해하고 삶의 흐름을 읽어 "
+                             "더 나은 선택을 돕는 지도입니다."))
+        body_parts.append(f"<div class='callout' style='text-align:center'><div class='callout-label' style='color:{TOKENS['gold']}'>{esc(brand)}</div>"
+                          f"<div>{report_year}년, {customer_name} 님의 앞날에 좋은 기운이 함께하기를 바랍니다.</div></div>")
 
-    # ---- 목차 삽입 ----
+    # ---- 목차 삽입 + 중복 문단 정리 ----
     toc = reg.toc_html()
-    document = "".join(body_parts).replace("{{TOC}}", toc)
+    document = "".join(body_parts)
+    document = _dedup_document(document)   # 공용 fallback 재사용으로 생긴 중복 문단 제거
+    document = document.replace("{{TOC}}", toc)
 
     header_text = f"{customer_name} 님 · {report_type}"
     footer_left = f"주문번호 {order_id}" if order_id else brand
