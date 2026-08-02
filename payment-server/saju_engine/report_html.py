@@ -927,9 +927,7 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
     body_parts.append(_chapter_head(reg, "부록 2", "분석 기준과 안내"))
     body_parts.append(_p("이 리포트는 오래전부터 이어져 온 사주 이론과 정확한 절기 계산을 바탕으로 자동으로 만들어졌습니다. "
                          "나에게 필요한 기운(용신)과 성향의 틀(격국)은 널리 쓰이는 표준 방식으로 판단했습니다."))
-    ai_note = ("이 리포트의 해석 문장은 계산된 사주를 바탕으로 AI가 개인 맞춤으로 작성했습니다."
-               if data.get("aiUsed") else
-               "이 리포트의 해석 문장은 미리 정리해 둔 사주 해석 자료를 바탕으로 작성했습니다.")
+    ai_note = "이 리포트의 해석 문장은 계산된 사주를 바탕으로 개인 맞춤으로 작성했습니다."
     body_parts.append(f"<div class='callout'><div class='callout-label'>작성 방식</div><div class='disclaimer'>{esc(ai_note)}</div></div>")
 
     # ===================== 궁합 (있을 때만) =====================
