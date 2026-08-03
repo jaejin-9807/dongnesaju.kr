@@ -46,13 +46,24 @@
     width: 26px; height: 26px; border: 1.5px solid var(--gold);
     border-radius: 50%; font-size: 13px; color: var(--gold);
   }
-  header .nav-right { display: flex; align-items: center; gap: 14px; font-size: 12.5px; }
-  header .nav-right a { color: var(--gold-light); text-decoration: none; }
-  header .nav-right a:hover { color: var(--gold); }
-  header .nav-right .user-name { color: var(--gold); font-weight: 700; }
-  header .nav-right .admin-link { font-size: 11px; color: var(--text-sub); border: 1px solid var(--line);
-    padding: 3px 9px; border-radius: 6px; }
-  header .nav-right .admin-link:hover { color: var(--gold); border-color: var(--gold); }
+  header .header-left { display: flex; align-items: center; gap: 12px; }
+  header .nav-right { display: flex; align-items: center; gap: 9px; font-size: 12.5px; }
+  header .nav-right .user-name { color: var(--gold); font-weight: 700; margin-right: 2px; }
+  /* 헤더 공용 버튼(카톡문의·로그인·회원가입 동일 크기) */
+  .hbtn { display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    font-size: 14px; font-weight: 800; padding: 9px 16px; border-radius: 9px;
+    text-decoration: none; line-height: 1; white-space: nowrap; cursor: pointer; border: none; font-family: inherit; }
+  .hbtn-kakao { background: #FEE500; color: #3C1E1E; }
+  .hbtn-kakao:hover { filter: brightness(0.96); }
+  .hbtn-login { background: var(--gold-light); color: var(--ink); }
+  .hbtn-login:hover { filter: brightness(1.05); }
+  .hbtn-signup { background: var(--gold); color: var(--ink); box-shadow: 0 2px 10px rgba(201,162,75,0.45); }
+  .hbtn-signup:hover { filter: brightness(1.06); }
+  header .nav-right .admin-link { font-size: 11px; color: var(--gold-light); opacity: 0.7;
+    text-decoration: none; padding: 4px 8px; border: 1px solid rgba(232,212,160,0.3); border-radius: 6px; }
+  header .nav-right .admin-link:hover { opacity: 1; border-color: var(--gold); }
+  header .nav-right .logout-link { font-size: 12px; color: var(--gold-light); text-decoration: none; opacity: 0.85; }
+  header .nav-right .logout-link:hover { opacity: 1; color: var(--gold); }
   .tagline-row {
     text-align: center; background: var(--ink); color: var(--gold-light);
     font-size: 11px; opacity: 0.75; letter-spacing: 1.5px; padding-bottom: 12px;
@@ -205,7 +216,11 @@
   @media (max-width: 640px) {
     .product-list { grid-template-columns: 1fr; }
     .form-grid-3 { grid-template-columns: 1fr 1fr; }
-    header .nav-right { font-size: 11px; gap: 10px; }
+    header { flex-wrap: wrap; gap: 8px; }
+    header .header-left { gap: 8px; }
+    header .nav-right { gap: 7px; }
+    .hbtn { font-size: 13px; padding: 8px 12px; }
+    header .logo { font-size: 16px; }
   }
 
   @media (max-width: 420px) {
@@ -224,10 +239,16 @@
 <body>
 
 <header>
-  <div class="logo"><span class="glyph">易</span>동네사주카페</div>
+  <div class="header-left">
+    <div class="logo"><span class="glyph">易</span>동네사주카페</div>
+    <a id="kakaoInquiryBtn" class="hbtn hbtn-kakao" href="#" target="_blank" rel="noopener">
+      <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path fill="#3C1E1E" d="M12 3C6.48 3 2 6.52 2 10.86c0 2.79 1.86 5.24 4.66 6.63-.15.53-.96 3.3-.99 3.52 0 0-.02.16.09.22.1.06.23.01.23.01.29-.04 3.36-2.2 3.9-2.58.68.1 1.38.15 2.11.15 5.52 0 10-3.52 10-7.95C22 6.52 17.52 3 12 3z"/></svg>
+      카톡문의
+    </a>
+  </div>
   <div class="nav-right" id="navRight">
-    <a href="/login.html">로그인</a>
-    <a href="/signup.html">회원가입</a>
+    <a href="/login.html" class="hbtn hbtn-login">로그인</a>
+    <a href="/signup.html" class="hbtn hbtn-signup">회원가입</a>
     <a href="/admin-login.html" class="admin-link">관리자</a>
   </div>
 </header>
@@ -505,6 +526,25 @@
 </style>
 <script src="/hanja-db.js"></script>
 <script>
+  // ★★★ 카톡문의 링크 — 여기만 본인 카카오 오픈채팅(또는 채널) 주소로 바꾸세요. ★★★
+  //   예) 오픈채팅: "https://open.kakao.com/o/xxxxxxx"
+  //       채널채팅: "https://pf.kakao.com/_xxxxxx/chat"
+  const KAKAO_INQUIRY_URL = "https://open.kakao.com/o/stYwx5Gi";
+  (function setupKakaoInquiry() {
+    const btn = document.getElementById("kakaoInquiryBtn");
+    if (!btn) return;
+    const ready = KAKAO_INQUIRY_URL && !KAKAO_INQUIRY_URL.includes("여기에링크");
+    if (ready) {
+      btn.href = KAKAO_INQUIRY_URL;
+    } else {
+      // 아직 링크를 안 넣은 경우: 클릭 시 안내(사이트가 깨지지 않게)
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        alert("카톡문의 링크가 아직 설정되지 않았습니다.\n(운영자: index.html의 KAKAO_INQUIRY_URL 값을 오픈채팅 주소로 바꿔주세요)");
+      });
+    }
+  })();
+
   const ZODIAC_TABLE = ["쥐", "소", "호랑이", "토끼", "용", "뱀", "말", "양", "원숭이", "닭", "개", "돼지"];
   function calcZodiac(year) {
     const y = Number(year);
@@ -524,8 +564,8 @@
         loggedInUser = data.user;
         navRight.innerHTML =
           `<span class="user-name">${data.user.name}님</span>` +
-          `<a href="/my.html">마이페이지</a>` +
-          `<a href="#" id="logoutLink">로그아웃</a>` +
+          `<a href="/my.html" class="hbtn hbtn-signup">마이페이지</a>` +
+          `<a href="#" id="logoutLink" class="logout-link">로그아웃</a>` +
           `<a href="/admin-login.html" class="admin-link">관리자</a>`;
         document.getElementById("logoutLink").addEventListener("click", async (e) => {
           e.preventDefault();
