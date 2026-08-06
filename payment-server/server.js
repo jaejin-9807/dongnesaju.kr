@@ -520,13 +520,20 @@ async function parseVoiceWithClaude(transcript) {
     "너는 한국어 음성 인식 결과에서 사람의 사주 정보를 추출하는 도우미다. " +
     "'어, 음, 그러니까, 뭐더라, 아이고' 같은 감탄사·추임새·숨소리·군더더기는 모두 무시하고, 오직 요청한 JSON만 출력한다. 설명이나 인사말은 절대 붙이지 않는다.";
   const user =
-    "다음 음성 텍스트에서 이름/성별/혼인여부/양력음력/생년/월/일/태어난시(0~23)/분을 뽑아 JSON으로만 답해줘.\n" +
-    "- 모르는 값은 null. 이름은 조사(이,가,은,는)를 떼고 순수 이름만.\n" +
+    "다음 음성 텍스트에서 이름/이름한자/성별/혼인여부/양력음력/생년/월/일/태어난시(0~23)/분을 뽑아 JSON으로만 답해줘.\n" +
+    "- 모르는 값은 null. 이름(name)은 조사(이,가,은,는)를 떼고 순수 한글 이름만.\n" +
+    "- 이름 한자: 화자가 훈음(뜻+음) 방식으로 한자를 불러줄 수 있다. 예: '성 김, 실을 재, 보배 진' → 金(성 김)·載(실을 재)·珍(보배 진). '나무 목', '빛날 현', '어질 인'처럼 '<뜻> <음>' 형태를 각 글자의 한자로 변환하라.\n" +
+    "  음성 인식이 부정확해 '시를 제/재짜/보배 진짜'처럼 들려도 훈음의 의도(예: 실을 재=載, 보배 진=珍)를 최대한 유추하라.\n" +
+    "  hanjaChars는 name의 각 글자 순서에 맞춘 한자 배열(해당 글자의 한자를 모르면 그 자리는 빈 문자열 \"\"). 화자가 한자를 아예 말하지 않았으면 hanjaChars는 null.\n" +
+    "  예: name='김재진', 화자가 '김 실을재 보배진' → hanjaChars=['金','載','珍'].\n" +
     "- 시각은 24시간제로: '낮 2시'·'오후 2시'→14, '저녁 7시'→19, '오전 9시'→9, '밤 11시'→23, '자정'→0, '정오'→12.\n" +
     "- 연도가 두 자리면 상식적으로 보정(31~99→19xx, 00~30→20xx).\n" +
     "- calendarType은 '양력'|'음력'|'음력윤달'|null. '윤달'이라 하면 '음력윤달'.\n" +
-    "- gender는 '남성'|'여성'|null. marital은 '기혼'|'미혼'|null('결혼했다/유부/남편/아내'는 기혼).\n" +
-    '출력 형식(JSON only): {"name":string|null,"gender":string|null,"marital":string|null,"calendarType":string|null,"year":number|null,"month":number|null,"day":number|null,"hour":number|null,"minute":number|null}\n\n' +
+    "- gender는 '남성'|'여성'|null.\n" +
+    "- marital은 '기혼'|'미혼'|null. '결혼했다/결혼했고/유부남/유부녀/남편/아내/애 있다'→기혼, '솔로/싱글/혼자/미혼/결혼 안 했다'→미혼.\n" +
+    "- phone(휴대폰 번호): 한국어로 부른 숫자를 아라비아 숫자로 바꿔라. 공/영/빵=0, 일=1, 이=2, 삼=3, 사=4, 오=5, 육/륙=6, 칠=7, 팔=8, 구=9. " +
+    "예: '공일공 일이삼사 일이삼사'→'01012341234'. 숫자만 10~11자리 문자열로. 없으면 null.\n" +
+    '출력 형식(JSON only): {"name":string|null,"hanjaChars":array|null,"gender":string|null,"marital":string|null,"phone":string|null,"calendarType":string|null,"year":number|null,"month":number|null,"day":number|null,"hour":number|null,"minute":number|null}\n\n' +
     '음성 텍스트: "' + String(transcript).slice(0, 1200) + '"';
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -541,10 +548,20 @@ async function parseVoiceWithClaude(transcript) {
   const f = JSON.parse(m[0]);
   // 값 정규화(범위 밖 방어)
   const clampInt = (v, lo, hi) => (v == null ? null : Math.max(lo, Math.min(hi, parseInt(v, 10))) || (v === 0 ? 0 : null));
+  const fmtPhone = (v) => {
+    if (!v) return null;
+    let d = String(v).replace(/\D/g, "");
+    if (d.length > 11) d = d.slice(0, 11);
+    if (d.length === 11) return d.replace(/(\d{3})(\d{4})(\d{4})/, "$1-$2-$3");
+    if (d.length === 10) return d.replace(/(\d{3})(\d{3})(\d{4})/, "$1-$2-$3");
+    return d.length >= 9 ? d : null;
+  };
   return {
     name: f.name || null,
+    hanjaChars: Array.isArray(f.hanjaChars) ? f.hanjaChars.map((x) => (x == null ? "" : String(x))) : null,
     gender: (f.gender === "남성" || f.gender === "여성") ? f.gender : null,
     marital: (f.marital === "기혼" || f.marital === "미혼") ? f.marital : null,
+    phone: fmtPhone(f.phone),
     calendarType: ["양력", "음력", "음력윤달"].includes(f.calendarType) ? f.calendarType : null,
     year: f.year ? parseInt(f.year, 10) : null,
     month: clampInt(f.month, 1, 12),

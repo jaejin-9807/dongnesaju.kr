@@ -734,6 +734,13 @@
     }
     nameEl.addEventListener("input", () => { sel = []; render(); });
     document.addEventListener("click", () => closeMenus());
+    // 음성 입력 등 외부에서 글자별 한자를 지정할 수 있게 통로를 연다.
+    window.HANJA_SETTERS = window.HANJA_SETTERS || {};
+    window.HANJA_SETTERS[nameId] = function (hanjaArr) {
+      const cs = chars();
+      sel = cs.map((c, i) => (hanjaArr && hanjaArr[i]) ? String(hanjaArr[i]) : "");
+      render();
+    };
     render();
   }
   setupHanjaPicker("fName", "fNameHanja", "fHanjaPicker");
@@ -766,8 +773,10 @@
     out.hour = h;
     out.minute = num(/(\d{1,2})\s*분/);
     // 혼인 여부
-    if (/기혼|결혼했|결혼 했|유부|와이프|남편|아내|배우자/.test(s)) out.marital = "기혼";
-    else if (/미혼|결혼 안|결혼안|싱글|솔로/.test(s)) out.marital = "미혼";
+    if (/기혼|결혼했|결혼 했|결혼함|결혼 한|유부|와이프|남편|아내|배우자|애\s*있/.test(s)) out.marital = "기혼";
+    else if (/미혼|결혼\s*안|결혼안|싱글|솔로|혼자\s*살/.test(s)) out.marital = "미혼";
+    // 휴대폰 번호 (한국어로 부른 숫자 → 아라비아 숫자)
+    out.phone = extractPhone(t);
     // 이름: '이름은 OOO' 또는 맨 앞 2~4글자 한글
     let nm = (s.match(/이름은?\s*([가-힣]{2,4})/) || [])[1];
     if (!nm) nm = (s.trim().match(/^([가-힣]{2,4})(?:\s|이고|이며|입니다|이에요|예요|이야|이라고|라고)/) || [])[1];
@@ -781,6 +790,26 @@
     nm = String(nm).trim();
     if (nm.length >= 3) nm = nm.replace(/(이|가|은|는|을|를|이고|이며|이가)$/, "");
     return nm.trim();
+  }
+
+  // 한국어로 부른 전화번호("공일공 일이삼사 일이삼사")를 숫자로 변환해 추출
+  function extractPhone(t) {
+    const dmap = { "공": "0", "영": "0", "빵": "0", "일": "1", "이": "2", "삼": "3", "사": "4", "오": "5", "육": "6", "륙": "6", "칠": "7", "팔": "8", "구": "9" };
+    const conv = (x) => x.replace(/[공영빵일이삼사오육륙칠팔구]/g, (c) => dmap[c]);
+    const cands = [];
+    // 1) '번호/연락처/전화/폰' 뒤 구간을 통째로 숫자화
+    const km = t.match(/(?:번호|연락처|전화|핸드폰|휴대폰|폰)\s*(?:는|은|가|이|:)?\s*([^\n]*)$/);
+    if (km) { const d = conv(km[1]).replace(/\D/g, ""); if (d.length >= 10) cands.push(d); }
+    // 2) 한글 숫자 연속 블록(8자 이상)
+    (t.match(/[공영빵일이삼사오육륙칠팔구]{8,}/g) || []).forEach((m) => { const d = conv(m); if (d.length >= 10) cands.push(d); });
+    // 3) 아라비아 숫자 블록
+    (t.match(/\d[\d\s\-]{8,}\d/g) || []).forEach((m) => { const d = m.replace(/\D/g, ""); if (d.length >= 10) cands.push(d); });
+    let ph = cands.find((x) => x.length === 11) || cands.find((x) => x.length === 10) || cands[0] || null;
+    if (!ph) return null;
+    if (ph.length > 11) ph = ph.slice(0, 11);
+    if (ph.length === 11) return ph.replace(/(\d{3})(\d{4})(\d{4})/, "$1-$2-$3");
+    if (ph.length === 10) return ph.replace(/(\d{3})(\d{3})(\d{4})/, "$1-$2-$3");
+    return ph;
   }
 
   function fillFromFields(f, cfg) {
@@ -797,6 +826,10 @@
       const nEl = document.getElementById(cfg.name);
       if (nEl && nm) { nEl.value = nm; nEl.classList.add("field-filled"); nEl.dispatchEvent(new Event("input")); setTimeout(()=>nEl.classList.remove("field-filled"),2500); }
       f.name = nm;
+      // 훈음(뜻+음)으로 말한 한자가 인식되면 글자별 한자 선택칸에 반영
+      if (f.hanjaChars && f.hanjaChars.some(Boolean) && window.HANJA_SETTERS && window.HANJA_SETTERS[cfg.name]) {
+        try { window.HANJA_SETTERS[cfg.name](f.hanjaChars); } catch (e) {}
+      }
     }
     if (f.gender) {
       const r = document.querySelector(`input[name="${cfg.genderName}"][value="${f.gender}"]`);
@@ -806,6 +839,7 @@
       const mr = document.querySelector(`input[name="${cfg.maritalName}"][value="${f.marital}"]`);
       if (mr) mr.checked = true;
     }
+    if (f.phone && cfg.phone) setV(cfg.phone, f.phone);
     if (f.calendarType) {
       const c = document.getElementById(cfg.cal);
       if (c) c.value = f.calendarType;
@@ -820,11 +854,15 @@
 
   function summarize(f) {
     const parts = [];
-    if (f.name) parts.push(`이름 <b>${f.name}</b>`);
+    if (f.name) {
+      const hj = (f.hanjaChars && f.hanjaChars.some(Boolean)) ? f.hanjaChars.map((h,i)=> h || (f.name[i]||"")).join("") : "";
+      parts.push(`이름 <b>${f.name}</b>` + (hj && hj !== f.name ? `(${hj})` : ""));
+    }
     if (f.gender) parts.push(f.gender);
     if (f.marital) parts.push(f.marital);
     if (f.year && f.month && f.day) parts.push(`${f.year}년 ${f.month}월 ${f.day}일` + (f.calendarType ? `(${f.calendarType})` : ""));
     if (f.hour != null) parts.push(`${f.hour}시` + (f.minute != null ? ` ${f.minute}분` : ""));
+    if (f.phone) parts.push(`☎ ${f.phone}`);
     return parts.length ? ("이렇게 입력했어요 → " + parts.join(" · ") + ".<br>내용을 확인하고 <b>아래 [등록하기]</b>를 눌러주세요. 틀린 칸은 직접 고치셔도 돼요.") : "인식된 정보가 없어요. 조금 더 또박또박 다시 말씀해 주세요.";
   }
 
@@ -924,7 +962,7 @@
     });
   }
   attachVoice({ btn: "voiceBtn1", status: "voiceStatus1", summary: "voiceSummary1", label: "🎤 말로 입력하기",
-    name: "fName", genderName: "gender", maritalName: "marital", cal: "fCalType", y: "fYear", m: "fMonth", d: "fDay", h: "fHour", min: "fMinute" });
+    name: "fName", genderName: "gender", maritalName: "marital", phone: "fPhone", cal: "fCalType", y: "fYear", m: "fMonth", d: "fDay", h: "fHour", min: "fMinute" });
   attachVoice({ btn: "voiceBtn2", status: "voiceStatus2", summary: "voiceSummary2", label: "🎤 상대방 정보 말로 입력하기",
     name: "pName", genderName: "pGender", cal: "pCalType", y: "pYear", m: "pMonth", d: "pDay", h: "pHour", min: "pMinute" });
 
