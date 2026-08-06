@@ -344,6 +344,12 @@
 
       <div class="selected-product-banner" id="selectedProductBanner"></div>
 
+      <div class="voice-box" id="voiceBox1">
+        <button type="button" class="voice-btn" id="voiceBtn1">🎤 말로 입력하기</button>
+        <div class="voice-status" id="voiceStatus1">버튼을 누르고 <b>이름·성별·생년월일·태어난 시각</b>을 편하게 말씀하세요.<br>말이 끝나면 버튼을 한 번 더 누르면 자동으로 채워져요.</div>
+        <div class="voice-summary" id="voiceSummary1"></div>
+      </div>
+
       <div class="form-row">
         <label>이름 <span class="hint">한글</span></label>
         <input type="text" id="fName" placeholder="예: 홍길동" />
@@ -424,6 +430,12 @@
             <option value="신혼부부">신혼부부 (결혼 초기)</option>
             <option value="부부">부부 (결혼 생활 중)</option>
           </select>
+        </div>
+
+        <div class="voice-box" id="voiceBox2">
+          <button type="button" class="voice-btn" id="voiceBtn2">🎤 상대방 정보 말로 입력하기</button>
+          <div class="voice-status" id="voiceStatus2">버튼을 누르고 <b>상대방의 이름·성별·생년월일·태어난 시각</b>을 말씀하세요.</div>
+          <div class="voice-summary" id="voiceSummary2"></div>
         </div>
 
         <div class="form-row">
@@ -533,6 +545,18 @@
   .hanja-opt b { font-size:19px; color:#8B2E2E; min-width:22px; }
   .hanja-opt .hm { color:#6B6252; font-size:12.5px; }
   .hanja-direct { color:#8B2E2E; font-weight:700; justify-content:center; }
+  /* 음성 입력(말로 채우기) */
+  .voice-box { background:#FBF4E2; border:1.5px solid var(--gold-light); border-radius:10px; padding:12px 14px; margin-bottom:14px; }
+  .voice-btn { width:100%; display:flex; align-items:center; justify-content:center; gap:8px; padding:14px; border:none; border-radius:8px; background:var(--ink); color:var(--gold-light); font-size:16px; font-weight:800; font-family:inherit; cursor:pointer; }
+  .voice-btn:hover { opacity:.92; }
+  .voice-btn.rec { background:#C0392B; color:#fff; animation:voicePulse 1.1s infinite; }
+  @keyframes voicePulse { 0%,100%{ box-shadow:0 0 0 0 rgba(192,57,43,.5);} 50%{ box-shadow:0 0 0 8px rgba(192,57,43,0);} }
+  .voice-btn.busy { background:#8A7A4A; color:#fff; cursor:progress; }
+  .voice-status { font-size:12.5px; color:var(--text-sub); margin-top:8px; text-align:center; line-height:1.5; min-height:16px; }
+  .voice-summary { font-size:13px; color:var(--ink); margin-top:8px; padding:9px 11px; background:#fff; border:1px solid var(--line); border-radius:7px; display:none; line-height:1.6; }
+  .voice-summary.on { display:block; }
+  .voice-summary b { color:#8B2E2E; }
+  .field-filled { border-color:var(--gold) !important; background:#FBF7EA !important; transition:background .3s; }
 </style>
 <script src="/hanja-db.js"></script>
 <script>
@@ -715,6 +739,145 @@
   setupHanjaPicker("fName", "fNameHanja", "fHanjaPicker");
   setupHanjaPicker("pName", "pNameHanja", "pHanjaPicker");
 
+  // ================= 음성으로 입력하기(말로 채우기) =================
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  // 서버 파싱 실패 시 쓰는 로컬 정규식 파서(추임새 제거 + 숫자 추출)
+  function parseVoiceLocal(t) {
+    let s = " " + t.replace(/[,]/g, " ") + " ";
+    const num = (re) => { const m = s.match(re); return m ? Number(m[1]) : null; };
+    const out = {};
+    // 양력/음력
+    if (/음력/.test(s)) out.calendarType = /윤달/.test(s) ? "음력윤달" : "음력";
+    else if (/양력/.test(s)) out.calendarType = "양력";
+    // 성별
+    if (/남자|남성|남/.test(s)) out.gender = "남성";
+    else if (/여자|여성|여/.test(s)) out.gender = "여성";
+    // 생년월일
+    let y = num(/(\d{4})\s*년/) || num(/(\d{2})\s*년/);
+    if (y && y < 100) y = y > 30 ? 1900 + y : 2000 + y;
+    out.year = y;
+    out.month = num(/(\d{1,2})\s*월/);
+    out.day = num(/(\d{1,2})\s*일/);
+    // 시각 (오후/저녁/밤 → +12)
+    let h = num(/(\d{1,2})\s*시/);
+    if (h != null && /(오후|낮|저녁|밤)/.test(s) && h < 12) h += 12;
+    if (h != null && /(새벽|오전|아침)/.test(s) && h === 12) h = 0;
+    out.hour = h;
+    out.minute = num(/(\d{1,2})\s*분/);
+    // 이름: '이름은 OOO' 또는 맨 앞 2~4글자 한글
+    let nm = (s.match(/이름은?\s*([가-힣]{2,4})/) || [])[1];
+    if (!nm) nm = (s.trim().match(/^([가-힣]{2,4})(?:\s|이고|이며|입니다|이에요|예요|이야)/) || [])[1];
+    if (nm) out.name = nm;
+    return out;
+  }
+
+  function fillFromFields(f, cfg) {
+    const setV = (id, v) => {
+      if (v == null || v === "") return;
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.value = v;
+      el.classList.add("field-filled");
+      setTimeout(() => el.classList.remove("field-filled"), 2500);
+    };
+    if (f.name) {
+      const nEl = document.getElementById(cfg.name);
+      if (nEl) { nEl.value = f.name; nEl.classList.add("field-filled"); nEl.dispatchEvent(new Event("input")); setTimeout(()=>nEl.classList.remove("field-filled"),2500); }
+    }
+    if (f.gender) {
+      const r = document.querySelector(`input[name="${cfg.genderName}"][value="${f.gender}"]`);
+      if (r) r.checked = true;
+    }
+    if (f.calendarType) {
+      const c = document.getElementById(cfg.cal);
+      if (c) c.value = f.calendarType;
+    }
+    setV(cfg.y, f.year); setV(cfg.m, f.month); setV(cfg.d, f.day);
+    setV(cfg.h, f.hour); setV(cfg.min, f.minute);
+    // 띠 자동계산 트리거
+    const yEl = document.getElementById(cfg.y);
+    if (yEl) yEl.dispatchEvent(new Event("input"));
+    return f;
+  }
+
+  function summarize(f) {
+    const parts = [];
+    if (f.name) parts.push(`이름 <b>${f.name}</b>`);
+    if (f.gender) parts.push(f.gender);
+    if (f.year && f.month && f.day) parts.push(`${f.year}년 ${f.month}월 ${f.day}일` + (f.calendarType ? `(${f.calendarType})` : ""));
+    if (f.hour != null) parts.push(`${f.hour}시` + (f.minute != null ? ` ${f.minute}분` : ""));
+    return parts.length ? ("이렇게 입력했어요 → " + parts.join(" · ") + ".<br>내용을 확인하고 <b>아래 [등록하기]</b>를 눌러주세요. 틀린 칸은 직접 고치셔도 돼요.") : "인식된 정보가 없어요. 조금 더 또박또박 다시 말씀해 주세요.";
+  }
+
+  function attachVoice(cfg) {
+    const btn = document.getElementById(cfg.btn);
+    const statusEl = document.getElementById(cfg.status);
+    const sumEl = document.getElementById(cfg.summary);
+    if (!btn) return;
+    if (!SR) {
+      btn.addEventListener("click", () => {
+        alert("이 브라우저는 음성 입력을 지원하지 않아요.\n크롬(Chrome) 브라우저나 안드로이드 폰에서 이용해 주세요. (그 외에는 직접 입력해 주세요)");
+      });
+      return;
+    }
+    let rec = null, listening = false, transcript = "";
+    async function process() {
+      btn.classList.remove("rec"); btn.classList.add("busy");
+      btn.textContent = "⏳ 기입 중…"; btn.disabled = true;
+      statusEl.textContent = "말씀하신 내용을 정리하고 있어요…";
+      let fields = null;
+      try {
+        const res = await fetch("/api/voice/parse", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ transcript }),
+        });
+        const data = await res.json();
+        if (data.success && data.fields) fields = data.fields;
+      } catch (e) { /* 서버 실패 → 로컬 파서 */ }
+      if (!fields) fields = parseVoiceLocal(transcript);
+      fillFromFields(fields, cfg);
+      sumEl.innerHTML = summarize(fields);
+      sumEl.classList.add("on");
+      statusEl.textContent = "";
+      btn.classList.remove("busy"); btn.disabled = false;
+      btn.textContent = cfg.label;
+    }
+    btn.addEventListener("click", () => {
+      if (btn.classList.contains("busy")) return;
+      if (!listening) {
+        transcript = "";
+        try { rec = new SR(); } catch (e) { alert("음성 입력을 시작할 수 없어요: " + e.message); return; }
+        rec.lang = "ko-KR"; rec.continuous = true; rec.interimResults = true;
+        rec.onresult = (e) => {
+          let full = "";
+          for (let i = 0; i < e.results.length; i++) full += e.results[i][0].transcript + " ";
+          transcript = full;
+          statusEl.textContent = "🔴 듣고 있어요… “" + full.trim().slice(-42) + "”";
+        };
+        rec.onerror = (e) => {
+          statusEl.textContent = e.error === "not-allowed"
+            ? "마이크 사용이 차단돼 있어요. 브라우저 마이크 권한을 허용해 주세요."
+            : "음성 인식 중 문제가 생겼어요. 다시 시도해 주세요.";
+          listening = false; btn.classList.remove("rec"); btn.textContent = cfg.label;
+        };
+        rec.onend = () => { if (listening) { listening = false; if (transcript.trim()) process(); else { btn.classList.remove("rec"); btn.textContent = cfg.label; statusEl.textContent = "인식된 말이 없어요. 다시 눌러 말씀해 주세요."; } } };
+        try { rec.start(); } catch (e) {}
+        listening = true;
+        btn.classList.add("rec"); btn.textContent = "⏹ 말 다 했어요 (자동 기입)";
+        statusEl.textContent = "🔴 듣고 있어요… 이름과 생년월일, 태어난 시각을 말씀하세요.";
+        sumEl.classList.remove("on");
+      } else {
+        listening = false;
+        try { rec.stop(); } catch (e) {}
+      }
+    });
+  }
+  attachVoice({ btn: "voiceBtn1", status: "voiceStatus1", summary: "voiceSummary1", label: "🎤 말로 입력하기",
+    name: "fName", genderName: "gender", cal: "fCalType", y: "fYear", m: "fMonth", d: "fDay", h: "fHour", min: "fMinute" });
+  attachVoice({ btn: "voiceBtn2", status: "voiceStatus2", summary: "voiceSummary2", label: "🎤 상대방 정보 말로 입력하기",
+    name: "pName", genderName: "pGender", cal: "pCalType", y: "pYear", m: "pMonth", d: "pDay", h: "pHour", min: "pMinute" });
+
   orderSubmitBtn.addEventListener("click", async () => {
     const name = document.getElementById("fName").value.trim();
     const nameHanja = document.getElementById("fNameHanja").value.trim();
@@ -784,6 +947,13 @@
       };
       payload.relationship = (document.getElementById("relationship") || {}).value || "";
     }
+
+    // 등록 전 최종 확인 — 특히 음성 자동기입 대비, 입력 내용을 한 번 더 안내한다.
+    const _fmtP = (pp) => `· 이름: ${pp.name}\n· 성별: ${pp.gender}\n· 생년월일: ${pp.year}년 ${pp.month}월 ${pp.day}일 (${pp.calendarType}${pp.isLeapMonth ? " 윤달" : ""})\n· 태어난 시각: ${pp.hour != null ? pp.hour + "시" + (pp.minute != null ? " " + pp.minute + "분" : "") : "모름"}`;
+    let _msg = "아래 내용으로 등록할까요?\n\n[ 본인 정보 ]\n" + _fmtP(payload.person1);
+    if (payload.person2) _msg += "\n\n[ 상대방 정보 ]\n" + _fmtP(payload.person2);
+    _msg += "\n\n맞으면 [확인], 고칠 게 있으면 [취소]를 눌러 주세요.";
+    if (!confirm(_msg)) return;
 
     orderModal.classList.remove("active");
     loadingModal.classList.add("active");

@@ -116,7 +116,9 @@ def main():
                     "birth": {"year": int(person2["year"]), "month": int(person2["month"]),
                               "day": int(person2["day"]),
                               "hour": int(person2.get("hour", 0) or 0),
-                              "minute": int(person2.get("minute", 0) or 0)},
+                              "minute": int(person2.get("minute", 0) or 0),
+                              "calendarType": person2.get("calendarType", "양력"),
+                              "timeUnknown": (person2.get("hour") is None)},
                     "pillars": {
                         "연주": list(pillars2.yeonju), "월주": list(pillars2.wolju),
                         "일주": list(pillars2.ilju), "시주": list(pillars2.siju),

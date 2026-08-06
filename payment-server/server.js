@@ -509,6 +509,64 @@ app.post("/api/admin/orders/:orderId/send-sms", requireAdmin, async (req, res) =
 });
 
 // ---------------------------------------------------------------
+// 음성 입력 → 필드 자동 추출 (Claude). 장년층 편의: 말로 이름·생년월일·시각을 채운다.
+//  "어…음…그러니까" 같은 추임새·숨소리는 무시하고 사주 정보만 뽑아낸다.
+// ---------------------------------------------------------------
+async function parseVoiceWithClaude(transcript) {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) throw new Error("NO_KEY");
+  const model = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5";
+  const system =
+    "너는 한국어 음성 인식 결과에서 사람의 사주 정보를 추출하는 도우미다. " +
+    "'어, 음, 그러니까, 뭐더라, 아이고' 같은 감탄사·추임새·숨소리·군더더기는 모두 무시하고, 오직 요청한 JSON만 출력한다. 설명이나 인사말은 절대 붙이지 않는다.";
+  const user =
+    "다음 음성 텍스트에서 이름/성별/양력음력/생년/월/일/태어난시(0~23)/분을 뽑아 JSON으로만 답해줘.\n" +
+    "- 모르는 값은 null.\n" +
+    "- 시각은 24시간제로: '낮 2시'·'오후 2시'→14, '저녁 7시'→19, '오전 9시'→9, '밤 11시'→23, '자정'→0, '정오'→12.\n" +
+    "- 연도가 두 자리면 상식적으로 보정(31~99→19xx, 00~30→20xx).\n" +
+    "- calendarType은 '양력'|'음력'|'음력윤달'|null. '윤달'이라 하면 '음력윤달'.\n" +
+    "- gender는 '남성'|'여성'|null.\n" +
+    '출력 형식(JSON only): {"name":string|null,"gender":string|null,"calendarType":string|null,"year":number|null,"month":number|null,"day":number|null,"hour":number|null,"minute":number|null}\n\n' +
+    '음성 텍스트: "' + String(transcript).slice(0, 1200) + '"';
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
+    body: JSON.stringify({ model, max_tokens: 400, system, messages: [{ role: "user", content: user }] }),
+  });
+  if (!r.ok) throw new Error("CLAUDE_" + r.status);
+  const data = await r.json();
+  const text = (data.content && data.content[0] && data.content[0].text) || "";
+  const m = text.match(/\{[\s\S]*\}/);
+  if (!m) throw new Error("NO_JSON");
+  const f = JSON.parse(m[0]);
+  // 값 정규화(범위 밖 방어)
+  const clampInt = (v, lo, hi) => (v == null ? null : Math.max(lo, Math.min(hi, parseInt(v, 10))) || (v === 0 ? 0 : null));
+  return {
+    name: f.name || null,
+    gender: (f.gender === "남성" || f.gender === "여성") ? f.gender : null,
+    calendarType: ["양력", "음력", "음력윤달"].includes(f.calendarType) ? f.calendarType : null,
+    year: f.year ? parseInt(f.year, 10) : null,
+    month: clampInt(f.month, 1, 12),
+    day: clampInt(f.day, 1, 31),
+    hour: (f.hour == null ? null : clampInt(f.hour, 0, 23)),
+    minute: (f.minute == null ? null : clampInt(f.minute, 0, 59)),
+  };
+}
+
+app.post("/api/voice/parse", requireCustomer, async (req, res) => {
+  const transcript = ((req.body && req.body.transcript) || "").toString().trim();
+  if (!transcript) return res.status(400).json({ success: false, message: "인식된 음성이 없습니다." });
+  try {
+    const fields = await parseVoiceWithClaude(transcript);
+    res.json({ success: true, fields });
+  } catch (e) {
+    // 실패(키 없음/모델 오류 등) → 클라이언트가 로컬 정규식 파서로 대체한다.
+    console.error("음성 파싱 실패:", e.message);
+    res.json({ success: false, message: "voice_parse_failed", code: e.message });
+  }
+});
+
+// ---------------------------------------------------------------
 // 관리자 전용: 실제 결제/회원 데이터를 건드리지 않고, 임의의 테스트 인물로
 // 사주 계산 + PDF 생성을 즉시 미리 볼 수 있는 샘플 엔드포인트.
 // 배포 전 "운세풀이 시작하기"를 눌렀을 때 어떤 PDF가 나오는지 검증하는 용도.

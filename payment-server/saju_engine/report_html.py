@@ -479,11 +479,18 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
         reg.enabled = True
 
     # ===================== 1. 표지 =====================
-    # 궁합 리포트는 표지에 두 사람 이름을 함께 넣는다.
-    _partner_name = ((gunghap or {}).get("partner") or {}).get("name") if gunghap else None
+    # 궁합 리포트는 표지에 두 사람 이름 + 두 사람 생년월일을 함께 넣는다.
+    _partner = ((gunghap or {}).get("partner") or {}) if gunghap else {}
+    _partner_name = _partner.get("name")
     if gunghap and _partner_name:
         _cover_name = f'{esc(customer_name)} <span class="amp">♥</span> {esc(_partner_name)}'
-        _cover_birth = f'{esc(birth_line)}'
+        _pb = _partner.get("birth") or {}
+        _ph, _pm = _pb.get("hour"), _pb.get("minute")
+        _ptime = "출생시간 미상" if _pb.get("timeUnknown") else f"{int(_ph or 0):02d}시 {int(_pm or 0):02d}분"
+        _partner_birth_line = (f"{_pb.get('year','')}년 {_pb.get('month','')}월 {_pb.get('day','')}일 "
+                               f"({_pb.get('calendarType','양력')}) · {_ptime}")
+        _cover_birth = (f'<span class="cb-nm">{esc(customer_name)}</span> {esc(birth_line)}<br>'
+                        f'<span class="cb-nm">{esc(_partner_name)}</span> {esc(_partner_birth_line)}')
     else:
         _cover_name = f'{esc(customer_name)} <span class="nim">님</span>'
         _cover_birth = f'{esc(birth_line)}'
