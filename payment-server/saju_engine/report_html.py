@@ -932,7 +932,7 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
 
     # ===================== 궁합 (있을 때만) =====================
     if gunghap:
-        _build_gunghap(reg, body_parts, gunghap, chart_paths, txt, customer_name, meta)
+        _build_gunghap(reg, body_parts, gunghap, chart_paths, txt, customer_name, meta, data)
 
     # ===================== 28. 마무리 (전체풀이/궁합에만 — 단품·요약판은 맺음말 1개로 충분) =====================
     if not compact:
@@ -958,35 +958,183 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
 <body>{document}</body></html>"""
 
 
-def _build_gunghap(reg, body_parts, gunghap, chart_paths, txt, customer_name, meta):
-    reg.part("6부. 궁합 자세히 보기")
+_OHENG_TRAIT = {
+    "목": "성장과 추진의 기운이 강해, 곧고 진취적이며 앞으로 나아가려는 성향",
+    "화": "밝고 표현이 풍부한 기운으로, 열정적이고 정이 많으며 감정 표현이 솔직한 성향",
+    "토": "안정과 포용의 기운이 두터워, 신중하고 듬직하며 사람을 품는 성향",
+    "금": "결단과 원칙의 기운이 뚜렷해, 단정하고 야무지며 맺고 끊음이 분명한 성향",
+    "수": "지혜와 유연함의 기운이 깊어, 생각이 많고 융통성 있으며 속이 깊은 성향",
+}
+
+
+def _sipseong_groups(sipseong):
+    """십성 표(위치→십성)를 그룹별 개수로 집계."""
+    vals = list((sipseong or {}).values())
+    def cnt(*names):
+        return sum(1 for v in vals if any(n in str(v) for n in names))
+    return {
+        "재성": cnt("정재", "편재"),   # 재물·현실감각
+        "식상": cnt("식신", "상관"),   # 표현·자녀·활동
+        "관성": cnt("정관", "편관"),   # 책임·직장·배우자(여성)
+        "인성": cnt("정인", "편인"),   # 배움·수용·안정
+        "비겁": cnt("비견", "겁재"),   # 자기주장·독립
+    }
+
+
+def _person_portrait(name, ilgan, most_oheng, missing, gyeok_name, sipseong):
+    """한 사람의 사주로 성격 인물 묘사 문단을 만든다."""
+    trait = _OHENG_TRAIT.get(most_oheng, "고유한 개성이 뚜렷한 성향")
+    g = _sipseong_groups(sipseong)
+    lead = max(g, key=lambda k: g[k]) if any(g.values()) else "비겁"
+    LEAD_TXT = {
+        "재성": "현실 감각이 좋고 살림·재물을 챙기는 데 밝습니다. 실속을 중시하는 편이라 계획과 약속이 지켜질 때 안정감을 느낍니다.",
+        "식상": "표현이 풍부하고 정을 베푸는 데 능합니다. 자녀나 주변을 돌보는 마음이 크고, 감정을 나눌 때 관계가 깊어집니다.",
+        "관성": "책임감이 강하고 반듯합니다. 규칙과 도리를 중요하게 여겨, 상대가 성실하게 약속을 지킬 때 신뢰가 쌓입니다.",
+        "인성": "배려심이 많고 받아들이는 폭이 넓습니다. 정서적 안정과 인정(認定)을 중요하게 여겨, 따뜻한 말 한마디에 큰 힘을 얻습니다.",
+        "비겁": "자기 주관이 뚜렷하고 독립적입니다. 존중받는다고 느낄 때 마음을 열고, 강요보다 인정에 움직입니다.",
+    }
+    miss = ", ".join(missing) if missing else "없음"
+    return (
+        f"{name} 님은 태어난 날의 기운이 <b>{esc(ilgan)}</b>이며, 다섯 기운 중 <b>{esc(most_oheng or '-')}</b> 기운이 가장 강합니다. "
+        f"{trait}을 지녔습니다. 타고난 성향의 큰 틀은 <b>{esc(plain(gyeok_name or '-'))}</b>으로, {LEAD_TXT[lead]} "
+        f"부족한 기운은 {esc(miss)} 쪽이라, 이 부분을 상대가 채워 줄 때 관계가 한결 편안해집니다."
+    )
+
+
+def _build_gunghap(reg, body_parts, gunghap, chart_paths, txt, customer_name, meta, data=None):
+    data = data or {}
+    p = gunghap.get("partner") or {}
+    p_name = p.get("name") or "배우자"
+    score = gunghap.get("score", 0)
+    grade = gunghap.get("grade", "중")
+    yukhap = gunghap.get("yukhap_hits", []) or []
+    samhap = gunghap.get("samhap_hits", []) or []
+    chung = gunghap.get("chung_hits", []) or []
+    hhp = gunghap.get("hyeong_hae_pa_hits", []) or []
+    rel = gunghap.get("ilgan_relation", "")
+    is_sang_geuk = "상극" in rel
+    is_sang_saeng = "상생" in rel or "비화" in rel
+
+    # 친밀도 라벨
+    if score >= 75:
+        intim = "서로를 강하게 끌어당기는, 인연의 힘이 큰 관계"
+    elif score >= 50:
+        intim = "노력으로 충분히 깊어지는, 균형 잡힌 관계"
+    else:
+        intim = "서로의 차이를 이해할수록 단단해지는 관계"
+
+    # ---------- 궁합 1. 총평 ----------
+    reg.part("궁합 · 총평")
     body_parts.append(_chapter_head(reg, "궁합 1", "두 사람의 궁합 총평", new_page=True))
     if chart_paths.get("gunghap_gauge"):
         body_parts.append(f"<div class='chart-wrap'><img src='{chart_paths['gunghap_gauge']}' style='width:58%'/></div>")
-    body_parts.append(_p(gunghap.get("summary", "")))
+    body_parts.append(f"<div class='callout'><div class='callout-label'>궁합 {esc(str(score))}점 · {esc(grade)}급</div>"
+                      f"<div>{esc(customer_name)} 님과 {esc(p_name)} 님은 <b>{esc(intim)}</b>입니다. "
+                      f"두 분의 타고난 기운은 {esc(plain(rel))} 관계로 이어져 있습니다.</div></div>")
+    body_parts.append(_section_block("궁합 종합 총평", txt("궁합총평", gunghap.get("총평해설", gunghap.get("summary", "")))))
     body_parts.append(
         "<div class='card'><table>"
         "<tr><th>항목</th><th>내용</th></tr>"
-        f"<tr><td>일간 관계</td><td>{esc(gunghap.get('ilgan_relation',''))}</td></tr>"
-        f"<tr><td>육합</td><td>{esc(', '.join(gunghap.get('yukhap_hits', [])) or '없음')}</td></tr>"
-        f"<tr><td>삼합</td><td>{esc(', '.join(gunghap.get('samhap_hits', [])) or '없음')}</td></tr>"
-        f"<tr><td>충</td><td>{esc(', '.join(gunghap.get('chung_hits', [])) or '없음')}</td></tr>"
-        f"<tr><td>형·해·파</td><td>{esc(', '.join(gunghap.get('hyeong_hae_pa_hits', [])) or '없음')}</td></tr>"
+        f"<tr><td>일간(기운) 관계</td><td>{esc(plain(rel))}</td></tr>"
+        f"<tr><td>서로 끌어당기는 힘(합)</td><td>{esc(', '.join(yukhap + samhap) or '뚜렷한 합은 없음')}</td></tr>"
+        f"<tr><td>부딪히기 쉬운 지점(충)</td><td>{esc(', '.join(chung) or '없음')}</td></tr>"
+        f"<tr><td>사소한 마찰(형·해·파)</td><td>{esc(', '.join(hhp) or '없음')}</td></tr>"
         "</table></div>")
-    body_parts.append(_section_block("궁합 종합 총평", txt("궁합총평", gunghap.get("summary", ""))))
 
-    body_parts.append(_chapter_head(reg, "궁합 2", "강점·시너지와 주의점"))
-    body_parts.append(_section_block("두 사람의 강점 및 시너지", txt("궁합장점", gunghap.get("강점해설", ""))))
-    body_parts.append(_section_block("성향 차이와 갈등 가능 지점", txt("궁합주의점및개운법", gunghap.get("주의점해설", ""))))
-    body_parts.append(_section_block("의사소통 방식 제안",
-        "서로의 일간 오행 관계를 이해하고, 상대가 힘을 얻는 기운(용신)을 배려하는 대화를 나누면 갈등이 줄어듭니다. "
-        "충(沖)에 해당하는 부분은 정면충돌보다 시간차를 두고 조율하는 편이 좋습니다.", footnote=False))
+    # ---------- 궁합 2. 배우자는 어떤 사람인가 ----------
+    body_parts.append(_chapter_head(reg, "궁합 2", f"{p_name} 님은 어떤 사람인가", new_page=True))
+    body_parts.append(f"<div class='sub-title'>{esc(p_name)} 님의 타고난 성향</div>")
+    body_parts.append("<p class='body-text'>" + _person_portrait(
+        p_name, p.get("ilgan", ""), p.get("ohengMostCommon", ""), p.get("ohengMissing", []),
+        (p.get("gyeokguk") or {}).get("name", ""), p.get("sipseong", {})) + "</p>")
+    if p.get("personality"):
+        body_parts.append(_p(p.get("personality")))
+    # 상대를 대하는 법
+    p_yong = (p.get("yongsin") or {}).get("yongsin", "")
+    rm = OHENG_REMEDY.get(p_yong, {})
+    body_parts.append(f"<div class='sub-title'>{esc(p_name)} 님과 잘 지내는 법</div>")
+    body_parts.append(_p(
+        f"{p_name} 님은 {('강한 자기 색을 인정받을 때' if (p.get('yongsin') or {}).get('is_strong') else '따뜻하게 지지받을 때')} 마음을 엽니다. "
+        f"{('바꾸려 하기보다 있는 그대로 존중하고, 결정은 스스로 내리도록 여유를 주세요.' if (p.get('yongsin') or {}).get('is_strong') else '다정한 말과 안정된 분위기로 안심시켜 주면 관계가 부드러워집니다.')} "
+        + (f"{p_name} 님에게 힘이 되는 기운은 {p_yong}이니, {rm.get('act','함께하는 산책·휴식')} 같은 시간을 함께하면 관계에 온기가 돕니다." if p_yong else "")))
+    # 나와의 기운 궁합
+    body_parts.append(f"<div class='sub-title'>두 사람의 기운 궁합</div>")
+    body_parts.append(_p(
+        (f"{customer_name} 님과 {p_name} 님은 서로의 기운이 도와주는(상생) 관계라, 함께 있으면 부족한 부분이 자연스럽게 채워집니다. 오래 볼수록 편안해지는 조합입니다."
+         if is_sang_saeng else
+         f"{customer_name} 님과 {p_name} 님은 기운이 부딪히기 쉬운(상극) 면이 있습니다. 이는 나쁜 것이 아니라, 서로를 긴장시키고 성장시키는 자극이 되기도 합니다. 다만 지칠 때는 한 걸음 물러나 쉬어 주는 배려가 필요합니다."
+         if is_sang_geuk else
+         f"{customer_name} 님과 {p_name} 님은 비슷한 결의 기운을 지녀 말이 잘 통하는 편입니다. 다만 둘 다 물러서지 않으면 고집이 부딪힐 수 있으니, 번갈아 양보하는 지혜가 필요합니다.")))
 
-    body_parts.append(_chapter_head(reg, "궁합 3", "관계 개선을 위한 실행 조언"))
-    body_parts.append(
-        "<div class='card'><b>재물·생활 궁합</b><br>공동의 재무 목표를 문서로 정하고 역할을 나누면 안정적입니다.</div>"
-        "<div class='card'><b>결혼·장기 관계 궁합</b><br>서로의 대운 흐름이 좋은 시기에 중요한 결정을 맞추면 시너지가 커집니다.</div>"
-        "<div class='card'><b>실행 조언</b><br>월 1회 서로의 계획을 공유하는 시간을 갖고, 기회 월에는 함께 새로운 시도를 해 보세요.</div>")
+    # ---------- 궁합 3. 친밀도와 부부로서의 현재 상태 ----------
+    body_parts.append(_chapter_head(reg, "궁합 3", "친밀도와 부부로서의 현재 상태", new_page=True))
+    body_parts.append(_section_block("두 사람의 친밀도",
+        (f"두 분 사이에는 서로를 끌어당기는 '합(合)'의 기운이 {len(yukhap)+len(samhap)}가지 있습니다. "
+         "말하지 않아도 통하는 부분이 있고, 함께 있을 때 정서적으로 안정되는 관계입니다. " if (yukhap or samhap) else
+         "두 분은 뜨겁게 끌리는 형태라기보다, 시간과 신뢰로 정을 쌓아가는 형태의 인연입니다. 함께한 세월만큼 깊어지는 관계입니다. ")
+        + f"현재 궁합 지수는 {score}점({grade}급)으로, {intim}입니다."))
+    body_parts.append(_section_block("부부로서 지금 서 있는 자리",
+        "결혼 후 함께 지내 온 시간은, 서로의 좋은 점만이 아니라 다른 점까지 마주하는 과정이었을 것입니다. "
+        "설렘이 익숙함으로 바뀌는 시기에는 '이 사람이 변했나' 싶은 서운함이 들기도 합니다. 하지만 이는 두 사람의 문제라기보다, "
+        "모든 부부가 지나는 자연스러운 흐름입니다. 지금은 연애의 열정 대신, 서로의 든든한 편이 되어 주는 '동반자'의 단계로 넘어가는 때입니다."))
+    body_parts.append("<div class='callout'><div class='callout-label'>이럴 때 관계가 좋아집니다</div>"
+                      f"<div>하루 10분이라도 서로의 눈을 보고 오늘 있었던 일을 나누기, 고마운 일을 그날그날 말로 표현하기, "
+                      f"{esc(p_name)} 님이 힘들어할 때 해결책보다 먼저 마음을 알아주기 — 이 작은 습관이 친밀도를 크게 끌어올립니다.</div></div>")
+
+    # ---------- 궁합 4. 갈등과 힘들었던 지점 ----------
+    body_parts.append(_chapter_head(reg, "궁합 4", "갈등과 힘들었던 지점, 그리고 회복", new_page=True))
+    if chung or hhp:
+        body_parts.append(_section_block("부딪히기 쉬운 부분",
+            f"두 분의 사주에는 부딪힘의 기운(충·형·해·파)이 {len(chung)+len(hhp)}가지 감지됩니다. "
+            "이는 생활 리듬(잠·식사·씀씀이)의 차이, 혹은 중요한 결정에서 의견이 엇갈리는 형태로 나타나기 쉽습니다. "
+            "특히 서로 지쳐 있을 때 사소한 말 한마디가 크게 번지곤 했을 것입니다."))
+    else:
+        body_parts.append(_section_block("부딪히기 쉬운 부분",
+            "두 분은 정면으로 크게 충돌하는 기운은 적은 편입니다. 다만 부딪힘이 적은 만큼 서운함을 속으로 삭이다 "
+            "한 번에 터뜨리기 쉬우니, 작은 불편도 그때그때 부드럽게 표현하는 편이 좋습니다."))
+    body_parts.append(_section_block("힘들었을 법한 시기",
+        "결혼 후 몇 년 사이에는, 아이가 태어나며 역할이 늘고 각자 지치는 시기가 한 번쯤 있었을 것입니다. "
+        "그 시기에는 서로에게 소홀해졌다는 서운함이나 '나만 애쓴다'는 억울함이 쌓이기도 합니다. "
+        "이는 사랑이 식은 것이 아니라, 삶의 무게가 두 사람을 동시에 눌렀던 것입니다. 그 고비를 함께 지나온 것만으로 두 분은 이미 단단합니다."))
+    body_parts.append(_section_block("재정(돈)에서의 결 차이",
+        f"{customer_name} 님과 {p_name} 님은 돈을 대하는 온도가 다를 수 있습니다. 한 사람이 '지금의 안정'을 중시하면 다른 사람은 '미래의 대비'를 중시하는 식입니다. "
+        "이 차이는 옳고 그름이 아니라 역할 분담의 기회입니다. 큰 지출·투자·보증은 반드시 함께 상의하고, 매달 한 번 가계와 목표를 같이 점검하면 돈 문제로 인한 갈등이 크게 줄어듭니다."))
+    body_parts.append("<div class='callout'><div class='callout-label'>관계가 흔들릴 때 회복하는 법</div>"
+                      "<div>부부의 위기는 대부분 '문제 그 자체'보다 '풀어가는 방식'에서 커집니다. 화가 날 때는 결론을 미루고, "
+                      "충(沖)에 해당하는 예민한 주제는 감정이 가라앉은 뒤 시간을 정해 대화하세요. "
+                      "서로를 이기려 하기보다 '우리가 한 편'이라는 사실을 먼저 떠올리면, 대부분의 고비는 지나갑니다.</div></div>")
+
+    # ---------- 궁합 5. 자녀운 ----------
+    my_g = _sipseong_groups(data.get("sipseong", {}))
+    pa_g = _sipseong_groups(p.get("sipseong", {}))
+    child_energy = my_g.get("식상", 0) + pa_g.get("식상", 0)
+    body_parts.append(_chapter_head(reg, "궁합 5", "자녀운 — 아이와의 인연", new_page=True))
+    body_parts.append(_section_block("두 분과 자녀의 인연",
+        ("두 분은 자녀에게 정을 쏟고 표현하는 기운(식상)이 넉넉합니다. 아이에게 사랑을 자주 표현하고, 재능을 알아봐 주는 부모가 되기 쉽습니다. "
+         if child_energy >= 2 else
+         "두 분은 자녀를 향한 마음은 깊지만, 그 마음을 표현하는 데는 다소 서툴 수 있습니다. 사랑한다는 말과 스킨십을 조금 더 자주 건네면 아이가 그 마음을 온전히 느낍니다. ")
+        + "부부가 서로를 아끼는 모습을 보여 주는 것이, 아이에게는 가장 큰 정서적 울타리가 됩니다."))
+    body_parts.append(_section_block("아이를 키울 때 두 사람의 역할",
+        f"{customer_name} 님과 {p_name} 님은 아이를 대하는 방식이 서로 다를 수 있습니다. 한 사람이 다정하게 품어 주면 다른 사람은 기준과 방향을 잡아 주는 식으로, "
+        "역할을 나누면 아이는 사랑과 규율을 균형 있게 배웁니다. 단, 아이 앞에서 서로의 훈육을 반박하지 않는 것이 중요합니다. 의견이 다르면 아이가 없는 곳에서 맞추세요."))
+    body_parts.append("<div class='callout'><div class='callout-label'>자녀를 위한 조언</div>"
+                      "<div>아이의 기질은 부모와 또 다릅니다. 부모의 틀에 맞추기보다 아이가 잘하는 것을 함께 찾아 주고, "
+                      "부부가 화목한 모습을 자주 보여 주는 것 — 그것이 어떤 교육보다 아이의 사주를 밝게 키웁니다.</div></div>")
+
+    # ---------- 궁합 6. 앞으로의 미래 ----------
+    body_parts.append(_chapter_head(reg, "궁합 6", "앞으로의 미래 — 함께 그리는 그림", new_page=True))
+    body_parts.append(_section_block("두 사람이 함께 좋은 시기",
+        "앞으로 두 분이 함께 기운을 받는 시기에는, 미뤄 둔 일(이사·큰 지출·새로운 도전)을 같이 결정하면 힘을 받습니다. "
+        "반대로 각자 지치는 시기가 겹칠 때는 큰 결정을 잠시 미루고, 서로의 회복을 우선하세요. 부부의 운은 '함께 쉬어 갈 때'와 '함께 나아갈 때'를 구분하는 데서 갈립니다."))
+    body_parts.append(_section_block("관계를 오래 지키는 비결",
+        f"{customer_name} 님과 {p_name} 님의 인연은, 뜨거움보다 꾸준함으로 완성되는 그림입니다. "
+        "서로의 다름을 '틀림'이 아니라 '역할'로 받아들이고, 고마움은 자주, 서운함은 부드럽게 그때그때 나누세요. "
+        "지금까지 함께 걸어온 길이 증명하듯, 두 분은 어떤 고비도 함께 넘을 힘을 이미 가지고 계십니다."))
+    body_parts.append(f"<div class='callout' style=\"border-left-color:{TOKENS['seal']};background:#FBEEE6;\">"
+                      f"<div class='callout-label' style=\"color:{TOKENS['seal']};\">두 분께 드리는 말</div>"
+                      f"<div>사주가 말하는 궁합은 '정해진 결말'이 아니라 '함께 만들어 갈 재료'입니다. "
+                      f"{esc(customer_name)} 님과 {esc(p_name)} 님이 서로를 향한 마음을 오늘도 한 번 더 표현하신다면, "
+                      f"두 분의 앞날에는 지금보다 더 깊은 정과 평안이 함께할 것입니다.</div></div>")
 
 
 def _excerpt(text, n=2):

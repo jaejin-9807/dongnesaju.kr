@@ -468,7 +468,15 @@ app.post("/api/admin/orders/:orderId/send-email", requireAdmin, async (req, res)
     res.json({ success: true, order: updated });
   } catch (e) {
     console.error("고객 메일 발송 오류:", e.message);
-    res.status(500).json({ success: false, message: "메일 발송 중 오류가 발생했습니다: " + e.message });
+    let hint = e.message;
+    if (/ETIMEDOUT|timeout|ECONNECTION|ECONNREFUSED|ENOTFOUND/i.test(e.message)) {
+      hint = "메일 서버에 접속하지 못했습니다. Railway 환경변수(MAIL_HOST/MAIL_USER/MAIL_PASS)와 네이버 'POP3/SMTP 사용함' 설정을 확인해 주세요.";
+    } else if (/auth|invalid login|535|자격/i.test(e.message)) {
+      hint = "메일 로그인에 실패했습니다. MAIL_USER(전체 이메일 주소)와 MAIL_PASS(네이버 비밀번호/앱 비밀번호)를 확인해 주세요.";
+    } else if (/설정/.test(e.message)) {
+      hint = "메일 발송 설정(MAIL_HOST/MAIL_USER/MAIL_PASS)이 아직 등록되지 않았습니다. Railway 환경변수에 추가해 주세요.";
+    }
+    res.status(500).json({ success: false, message: hint });
   }
 });
 

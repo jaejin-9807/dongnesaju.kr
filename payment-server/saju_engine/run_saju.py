@@ -100,12 +100,48 @@ def main():
                 )
                 pillars2 = calculate_saju(p2_dt, p2_gender)
                 gh = calc_gunghap(pillars, pillars2)
+                # --- 상대방(배우자) 사주 분석 : '상대가 어떤 사람인지' 결과지에 담기 위함 ---
+                oheng_dist2 = calc_oheng_distribution(pillars2)
+                gyeokguk2 = calc_gyeokguk(pillars2)
+                yongsin2 = calc_yongsin(pillars2, oheng_dist2)
+                sipseong2 = calc_sipseong_table(pillars2)
+                unseong2 = calc_12unseong_table(pillars2)
+                sinsal2 = calc_sinsal(pillars2)
+                daeun2 = calc_daeun(pillars2)
+                most_oheng2 = oheng_dist2.most_common()
+                missing_ohengs2 = oheng_dist2.missing()
+                partner = {
+                    "name": person2.get("name") or "배우자",
+                    "gender": p2_gender,
+                    "birth": {"year": int(person2["year"]), "month": int(person2["month"]),
+                              "day": int(person2["day"]),
+                              "hour": int(person2.get("hour", 0) or 0),
+                              "minute": int(person2.get("minute", 0) or 0)},
+                    "pillars": {
+                        "연주": list(pillars2.yeonju), "월주": list(pillars2.wolju),
+                        "일주": list(pillars2.ilju), "시주": list(pillars2.siju),
+                    },
+                    "ilgan": pillars2.ilgan,
+                    "ohengDistribution": oheng_dist2.counts,
+                    "ohengMostCommon": most_oheng2,
+                    "ohengMissing": missing_ohengs2,
+                    "sipseong": sipseong2,
+                    "unseong12": unseong2,
+                    "sinsal": sinsal2,
+                    "gyeokguk": {"name": gyeokguk2.name, "description": gyeokguk2.description},
+                    "yongsin": {"yongsin": yongsin2.yongsin, "huisin": yongsin2.huisin,
+                                "gisin": yongsin2.gisin, "gusin": yongsin2.gusin,
+                                "is_strong": yongsin2.is_strong},
+                    "daeun": {"pillars": daeun2.pillars, "startAges": daeun2.start_ages},
+                    "personality": get_saju_origin_text(most_oheng2, pillars2.ilgan) if most_oheng2 else "",
+                }
                 gunghap_result = {
                     "ilgan_a": gh.ilgan_a, "ilgan_b": gh.ilgan_b,
                     "ilgan_relation": gh.ilgan_relation,
                     "yukhap_hits": gh.yukhap_hits, "samhap_hits": gh.samhap_hits,
                     "chung_hits": gh.chung_hits, "hyeong_hae_pa_hits": gh.hyeong_hae_pa_hits,
                     "score": gh.score, "grade": gh.grade, "summary": gh.summary,
+                    "partner": partner,
                     "총평해설": get_gunghap_summary_extended(gh.summary, gh.score, gh.grade, gh.ilgan_relation),
                     "강점해설": get_gunghap_strength_text(gh.yukhap_hits, gh.samhap_hits, gh.ilgan_relation),
                     "주의점해설": get_gunghap_caution_text(gh.chung_hits, gh.hyeong_hae_pa_hits),

@@ -31,6 +31,11 @@ function getTransporter() {
     port,
     secure: port === 465,
     auth: { user, pass },
+    // SMTP 접속이 멈춰(hang) Railway 502(Application failed to respond)로 이어지지 않도록
+    // 단계별 타임아웃을 둔다. 실패하면 곧바로 오류로 떨어져 명확한 메시지를 돌려준다.
+    connectionTimeout: 10000, // 접속 10초
+    greetingTimeout: 10000,   // 인사(EHLO) 10초
+    socketTimeout: 20000,     // 전송 20초
   });
 }
 
