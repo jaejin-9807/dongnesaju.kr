@@ -765,11 +765,22 @@
     if (h != null && /(새벽|오전|아침)/.test(s) && h === 12) h = 0;
     out.hour = h;
     out.minute = num(/(\d{1,2})\s*분/);
+    // 혼인 여부
+    if (/기혼|결혼했|결혼 했|유부|와이프|남편|아내|배우자/.test(s)) out.marital = "기혼";
+    else if (/미혼|결혼 안|결혼안|싱글|솔로/.test(s)) out.marital = "미혼";
     // 이름: '이름은 OOO' 또는 맨 앞 2~4글자 한글
     let nm = (s.match(/이름은?\s*([가-힣]{2,4})/) || [])[1];
-    if (!nm) nm = (s.trim().match(/^([가-힣]{2,4})(?:\s|이고|이며|입니다|이에요|예요|이야)/) || [])[1];
-    if (nm) out.name = nm;
+    if (!nm) nm = (s.trim().match(/^([가-힣]{2,4})(?:\s|이고|이며|입니다|이에요|예요|이야|이라고|라고)/) || [])[1];
+    if (nm) out.name = cleanName(nm);
     return out;
+  }
+
+  // 이름 뒤에 붙은 조사('홍길동이','철수는') 제거
+  function cleanName(nm) {
+    if (!nm) return nm;
+    nm = String(nm).trim();
+    if (nm.length >= 3) nm = nm.replace(/(이|가|은|는|을|를|이고|이며|이가)$/, "");
+    return nm.trim();
   }
 
   function fillFromFields(f, cfg) {
@@ -782,12 +793,18 @@
       setTimeout(() => el.classList.remove("field-filled"), 2500);
     };
     if (f.name) {
+      const nm = cleanName(f.name);
       const nEl = document.getElementById(cfg.name);
-      if (nEl) { nEl.value = f.name; nEl.classList.add("field-filled"); nEl.dispatchEvent(new Event("input")); setTimeout(()=>nEl.classList.remove("field-filled"),2500); }
+      if (nEl && nm) { nEl.value = nm; nEl.classList.add("field-filled"); nEl.dispatchEvent(new Event("input")); setTimeout(()=>nEl.classList.remove("field-filled"),2500); }
+      f.name = nm;
     }
     if (f.gender) {
       const r = document.querySelector(`input[name="${cfg.genderName}"][value="${f.gender}"]`);
       if (r) r.checked = true;
+    }
+    if (f.marital && cfg.maritalName) {
+      const mr = document.querySelector(`input[name="${cfg.maritalName}"][value="${f.marital}"]`);
+      if (mr) mr.checked = true;
     }
     if (f.calendarType) {
       const c = document.getElementById(cfg.cal);
@@ -805,6 +822,7 @@
     const parts = [];
     if (f.name) parts.push(`이름 <b>${f.name}</b>`);
     if (f.gender) parts.push(f.gender);
+    if (f.marital) parts.push(f.marital);
     if (f.year && f.month && f.day) parts.push(`${f.year}년 ${f.month}월 ${f.day}일` + (f.calendarType ? `(${f.calendarType})` : ""));
     if (f.hour != null) parts.push(`${f.hour}시` + (f.minute != null ? ` ${f.minute}분` : ""));
     return parts.length ? ("이렇게 입력했어요 → " + parts.join(" · ") + ".<br>내용을 확인하고 <b>아래 [등록하기]</b>를 눌러주세요. 틀린 칸은 직접 고치셔도 돼요.") : "인식된 정보가 없어요. 조금 더 또박또박 다시 말씀해 주세요.";
@@ -821,11 +839,22 @@
       });
       return;
     }
-    let rec = null, listening = false, transcript = "";
-    async function process() {
-      btn.classList.remove("rec"); btn.classList.add("busy");
-      btn.textContent = "⏳ 기입 중…"; btn.disabled = true;
-      statusEl.textContent = "말씀하신 내용을 정리하고 있어요…";
+    let rec = null;            // 현재 SpeechRecognition 인스턴스
+    let listening = false;     // 사용자가 '듣는 중' 상태로 켜 두었는가
+    let userStopped = false;   // 사용자가 직접 '말 다 했어요'를 눌렀는가
+    let finalText = "";        // 확정된 누적 텍스트(자동 재시작 사이에도 유지)
+    let restartTimer = null;
+    let processed = false;     // 중복 분석 방지
+
+    function setIdleUI() { btn.classList.remove("rec", "busy"); btn.disabled = false; btn.textContent = cfg.label; }
+
+    async function finishProcess() {
+      if (processed) return;
+      processed = true;
+      const transcript = finalText.trim();
+      if (!transcript) { setIdleUI(); statusEl.textContent = "인식된 말이 없어요. 다시 눌러 또박또박 말씀해 주세요."; return; }
+      btn.classList.remove("rec"); btn.classList.add("busy"); btn.disabled = true;
+      btn.textContent = "⏳ 기입 중…"; statusEl.textContent = "말씀하신 내용을 정리하고 있어요…";
       let fields = null;
       try {
         const res = await fetch("/api/voice/parse", {
@@ -840,41 +869,62 @@
       sumEl.innerHTML = summarize(fields);
       sumEl.classList.add("on");
       statusEl.textContent = "";
-      btn.classList.remove("busy"); btn.disabled = false;
-      btn.textContent = cfg.label;
+      setIdleUI();
     }
+
+    function startRec() {
+      try { rec = new SR(); } catch (e) { statusEl.textContent = "음성 입력을 시작할 수 없어요."; setIdleUI(); listening = false; return; }
+      rec.lang = "ko-KR"; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1;
+      rec.onresult = (e) => {
+        let interim = "";
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const r = e.results[i];
+          if (r.isFinal) finalText += r[0].transcript + " ";
+          else interim += r[0].transcript;
+        }
+        statusEl.textContent = "🔴 듣고 있어요… " + (finalText + interim).trim().slice(-52);
+      };
+      rec.onerror = (e) => {
+        if (e.error === "no-speech" || e.error === "aborted") return; // 무시(재시작은 onend에서)
+        if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+          statusEl.textContent = "마이크 사용이 차단돼 있어요. 브라우저 주소창의 자물쇠 → 마이크 '허용'으로 바꿔 주세요.";
+          userStopped = true; listening = false; setIdleUI();
+        }
+      };
+      rec.onend = () => {
+        // 사용자가 멈춘 게 아니라 모바일이 침묵으로 자동 종료한 경우 → 계속 듣도록 재시작
+        if (listening && !userStopped) {
+          try { rec.start(); }
+          catch (e) { clearTimeout(restartTimer); restartTimer = setTimeout(() => { try { rec.start(); } catch (_) {} }, 350); }
+          return;
+        }
+        if (userStopped) finishProcess();
+      };
+      try { rec.start(); } catch (e) {}
+    }
+
     btn.addEventListener("click", () => {
       if (btn.classList.contains("busy")) return;
       if (!listening) {
-        transcript = "";
-        try { rec = new SR(); } catch (e) { alert("음성 입력을 시작할 수 없어요: " + e.message); return; }
-        rec.lang = "ko-KR"; rec.continuous = true; rec.interimResults = true;
-        rec.onresult = (e) => {
-          let full = "";
-          for (let i = 0; i < e.results.length; i++) full += e.results[i][0].transcript + " ";
-          transcript = full;
-          statusEl.textContent = "🔴 듣고 있어요… “" + full.trim().slice(-42) + "”";
-        };
-        rec.onerror = (e) => {
-          statusEl.textContent = e.error === "not-allowed"
-            ? "마이크 사용이 차단돼 있어요. 브라우저 마이크 권한을 허용해 주세요."
-            : "음성 인식 중 문제가 생겼어요. 다시 시도해 주세요.";
-          listening = false; btn.classList.remove("rec"); btn.textContent = cfg.label;
-        };
-        rec.onend = () => { if (listening) { listening = false; if (transcript.trim()) process(); else { btn.classList.remove("rec"); btn.textContent = cfg.label; statusEl.textContent = "인식된 말이 없어요. 다시 눌러 말씀해 주세요."; } } };
-        try { rec.start(); } catch (e) {}
-        listening = true;
-        btn.classList.add("rec"); btn.textContent = "⏹ 말 다 했어요 (자동 기입)";
-        statusEl.textContent = "🔴 듣고 있어요… 이름과 생년월일, 태어난 시각을 말씀하세요.";
+        // 녹음 시작
+        finalText = ""; userStopped = false; listening = true; processed = false;
         sumEl.classList.remove("on");
+        btn.classList.add("rec"); btn.textContent = "⏹ 말 다 했어요 (자동 기입)";
+        statusEl.textContent = "🔴 듣고 있어요… 천천히 말씀하세요. 중간에 잠깐 멈춰도 괜찮아요. 다 끝나면 이 버튼을 다시 누르세요.";
+        startRec();
       } else {
-        listening = false;
-        try { rec.stop(); } catch (e) {}
+        // 사용자가 직접 종료 → 분석 시작
+        userStopped = true; listening = false;
+        clearTimeout(restartTimer);
+        btn.classList.remove("rec"); btn.classList.add("busy"); btn.disabled = true; btn.textContent = "⏳ 기입 중…";
+        try { rec.stop(); } catch (e) { finishProcess(); }
+        // 일부 브라우저에서 onend가 안 오는 경우 대비 안전장치
+        setTimeout(() => { if (btn.classList.contains("busy") && userStopped) finishProcess(); }, 1500);
       }
     });
   }
   attachVoice({ btn: "voiceBtn1", status: "voiceStatus1", summary: "voiceSummary1", label: "🎤 말로 입력하기",
-    name: "fName", genderName: "gender", cal: "fCalType", y: "fYear", m: "fMonth", d: "fDay", h: "fHour", min: "fMinute" });
+    name: "fName", genderName: "gender", maritalName: "marital", cal: "fCalType", y: "fYear", m: "fMonth", d: "fDay", h: "fHour", min: "fMinute" });
   attachVoice({ btn: "voiceBtn2", status: "voiceStatus2", summary: "voiceSummary2", label: "🎤 상대방 정보 말로 입력하기",
     name: "pName", genderName: "pGender", cal: "pCalType", y: "pYear", m: "pMonth", d: "pDay", h: "pHour", min: "pMinute" });
 
