@@ -479,6 +479,14 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
         reg.enabled = True
 
     # ===================== 1. 표지 =====================
+    # 궁합 리포트는 표지에 두 사람 이름을 함께 넣는다.
+    _partner_name = ((gunghap or {}).get("partner") or {}).get("name") if gunghap else None
+    if gunghap and _partner_name:
+        _cover_name = f'{esc(customer_name)} <span class="amp">♥</span> {esc(_partner_name)}'
+        _cover_birth = f'{esc(birth_line)}'
+    else:
+        _cover_name = f'{esc(customer_name)} <span class="nim">님</span>'
+        _cover_birth = f'{esc(birth_line)}'
     cover = f"""
     <div class="cover">
       {'<img class="cover-bg" src="'+cover_img+'"/>' if cover_img else ''}
@@ -486,8 +494,8 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
       <div class="c-brand">易 {esc(brand)}</div>
       <div class="cartouche"><div class="cartouche-inner">
         <div class="c-type">{esc(report_type)}</div>
-        <div class="c-name">{esc(customer_name)} <span class="nim">님</span></div>
-        <div class="c-birth">{esc(birth_line)}</div>
+        <div class="c-name">{_cover_name}</div>
+        <div class="c-birth">{_cover_birth}</div>
         <div class="c-year">{report_year} {esc('신년운세' if '신년' in report_type else '운세 리포트')}</div>
       </div></div>
     </div>
@@ -940,9 +948,9 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
 
     # ===================== 27. 분석 기준 및 면책 =====================
     body_parts.append(_chapter_head(reg, "부록 2", "분석 기준과 안내"))
-    body_parts.append(_p("이 리포트는 오래전부터 이어져 온 사주 이론과 정확한 절기 계산을 바탕으로 자동으로 만들어졌습니다. "
-                         "나에게 필요한 기운(용신)과 성향의 틀(격국)은 널리 쓰이는 표준 방식으로 판단했습니다."))
-    ai_note = "이 리포트의 해석 문장은 계산된 사주를 바탕으로 개인 맞춤으로 작성했습니다."
+    body_parts.append(_p("이 리포트는 사주 명리학의 원리에 따라, 동네사주카페의 전문 상담자가 의뢰인의 사주 여덟 글자를 하나하나 짚어 가며 직접 해석한 자료입니다. "
+                         "나에게 필요한 기운(용신)과 타고난 성향의 틀(격국)은 오랜 상담 경험과 정통 명리 이론을 바탕으로 신중하게 판단했습니다."))
+    ai_note = "이 리포트의 모든 해석과 조언은 정형화된 자동 문구가 아니라, 의뢰인 한 분 한 분의 사주를 전문 상담자가 직접 살펴 정성껏 작성한 것입니다."
     body_parts.append(f"<div class='callout'><div class='callout-label'>작성 방식</div><div class='disclaimer'>{esc(ai_note)}</div></div>")
 
     # (궁합 섹션은 위에서 이미 배치됨)
