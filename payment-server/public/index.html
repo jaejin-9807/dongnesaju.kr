@@ -766,17 +766,31 @@
     out.year = y;
     out.month = num(/(\d{1,2})\s*월/);
     out.day = num(/(\d{1,2})\s*일/);
-    // 시각 (오후/저녁/밤 → +12)
+    // 시각 — 숫자('3시') + 한글 숫자('세 시') 모두 인식, 오전/오후 24시간제 변환
     let h = num(/(\d{1,2})\s*시/);
-    if (h != null && /(오후|낮|저녁|밤)/.test(s) && h < 12) h += 12;
-    if (h != null && /(새벽|오전|아침)/.test(s) && h === 12) h = 0;
+    if (h == null) {
+      const HW = { "한": 1, "두": 2, "세": 3, "네": 4, "다섯": 5, "여섯": 6, "일곱": 7, "여덟": 8, "아홉": 9, "열": 10, "열한": 11, "열두": 12 };
+      const hw = s.match(/(열두|열한|열|아홉|여덟|일곱|여섯|다섯|네|세|두|한)\s*시/);
+      if (hw) h = HW[hw[1]];
+    }
+    if (/정오/.test(s)) h = 12;
+    if (/자정/.test(s)) h = 0;
+    if (h != null) {
+      if (/(오후|낮|저녁|밤)/.test(s) && h < 12) h += 12;        // 오후 3시·낮 3시 → 15
+      else if (/(새벽|오전|아침)/.test(s) && h === 12) h = 0;    // 오전 12시 → 0
+    }
     out.hour = h;
-    out.minute = num(/(\d{1,2})\s*분/);
+    // 분 — 숫자('30분') 또는 '반'(30분)
+    let mn = num(/(\d{1,2})\s*분/);
+    if (mn == null && /시/.test(s) && /반/.test(s)) mn = 30;
+    out.minute = mn;
     // 혼인 여부
     if (/기혼|결혼했|결혼 했|결혼함|결혼 한|유부|와이프|남편|아내|배우자|애\s*있/.test(s)) out.marital = "기혼";
     else if (/미혼|결혼\s*안|결혼안|싱글|솔로|혼자\s*살/.test(s)) out.marital = "미혼";
     // 휴대폰 번호 (한국어로 부른 숫자 → 아라비아 숫자)
     out.phone = extractPhone(t);
+    // 이메일 ('골뱅이 네이버 닷컴' → @naver.com)
+    out.email = extractEmail(t);
     // 이름: '이름은 OOO' 또는 맨 앞 2~4글자 한글
     let nm = (s.match(/이름은?\s*([가-힣]{2,4})/) || [])[1];
     if (!nm) nm = (s.trim().match(/^([가-힣]{2,4})(?:\s|이고|이며|입니다|이에요|예요|이야|이라고|라고)/) || [])[1];
@@ -812,6 +826,29 @@
     return ph;
   }
 
+  // 말로 부른 이메일("길동 골뱅이 네이버 닷컴" → gildong@naver.com) 변환
+  function extractEmail(t) {
+    // 1) 이미 이메일 형태로 인식된 경우
+    const direct = t.match(/[A-Za-z0-9._%+\-]+\s*@\s*[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/);
+    if (direct) return direct[0].replace(/\s+/g, "").toLowerCase();
+    if (!/골뱅이|앳|@/.test(t)) return null;
+    let s = " " + t + " ";
+    s = s.replace(/골뱅이|앳/g, "@");
+    s = s.replace(/닷컴|쩜컴/g, ".com");
+    s = s.replace(/\s*(닷|점|쩜|dot)\s*/gi, ".");
+    [["네이버", "naver"], ["지메일", "gmail"], ["구글", "gmail"], ["다음", "daum"],
+     ["한메일", "hanmail"], ["네이트", "nate"], ["핫메일", "hotmail"], ["야후", "yahoo"], ["카카오", "kakao"]]
+      .forEach(([k, v]) => { s = s.replace(new RegExp(k, "g"), v); });
+    s = s.replace(/\s*@\s*/g, "@").replace(/\s*\.\s*/g, ".");
+    // 도메인만 말하고 .xxx 를 빠뜨린 경우 대표 도메인 보정
+    s = s.replace(/@naver(?![.\w])/, "@naver.com").replace(/@gmail(?![.\w])/, "@gmail.com")
+         .replace(/@daum(?![.\w])/, "@daum.net").replace(/@hanmail(?![.\w])/, "@hanmail.net")
+         .replace(/@nate(?![.\w])/, "@nate.com").replace(/@hotmail(?![.\w])/, "@hotmail.com")
+         .replace(/@yahoo(?![.\w])/, "@yahoo.com").replace(/@kakao(?![.\w])/, "@kakao.com");
+    const m = s.match(/[A-Za-z0-9._%+\-가-힣]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/);
+    return m ? m[0].replace(/\s+/g, "").toLowerCase() : null;
+  }
+
   function fillFromFields(f, cfg) {
     const setV = (id, v) => {
       if (v == null || v === "") return;
@@ -840,6 +877,7 @@
       if (mr) mr.checked = true;
     }
     if (f.phone && cfg.phone) setV(cfg.phone, f.phone);
+    if (f.email && cfg.email) setV(cfg.email, f.email);
     if (f.calendarType) {
       const c = document.getElementById(cfg.cal);
       if (c) c.value = f.calendarType;
@@ -863,6 +901,7 @@
     if (f.year && f.month && f.day) parts.push(`${f.year}년 ${f.month}월 ${f.day}일` + (f.calendarType ? `(${f.calendarType})` : ""));
     if (f.hour != null) parts.push(`${f.hour}시` + (f.minute != null ? ` ${f.minute}분` : ""));
     if (f.phone) parts.push(`☎ ${f.phone}`);
+    if (f.email) parts.push(`✉ ${f.email}`);
     return parts.length ? ("이렇게 입력했어요 → " + parts.join(" · ") + ".<br>내용을 확인하고 <b>아래 [등록하기]</b>를 눌러주세요. 틀린 칸은 직접 고치셔도 돼요.") : "인식된 정보가 없어요. 조금 더 또박또박 다시 말씀해 주세요.";
   }
 
@@ -962,7 +1001,7 @@
     });
   }
   attachVoice({ btn: "voiceBtn1", status: "voiceStatus1", summary: "voiceSummary1", label: "🎤 말로 입력하기",
-    name: "fName", genderName: "gender", maritalName: "marital", phone: "fPhone", cal: "fCalType", y: "fYear", m: "fMonth", d: "fDay", h: "fHour", min: "fMinute" });
+    name: "fName", genderName: "gender", maritalName: "marital", phone: "fPhone", email: "fEmail", cal: "fCalType", y: "fYear", m: "fMonth", d: "fDay", h: "fHour", min: "fMinute" });
   attachVoice({ btn: "voiceBtn2", status: "voiceStatus2", summary: "voiceSummary2", label: "🎤 상대방 정보 말로 입력하기",
     name: "pName", genderName: "pGender", cal: "pCalType", y: "pYear", m: "pMonth", d: "pDay", h: "pHour", min: "pMinute" });
 

@@ -526,14 +526,16 @@ async function parseVoiceWithClaude(transcript) {
     "  음성 인식이 부정확해 '시를 제/재짜/보배 진짜'처럼 들려도 훈음의 의도(예: 실을 재=載, 보배 진=珍)를 최대한 유추하라.\n" +
     "  hanjaChars는 name의 각 글자 순서에 맞춘 한자 배열(해당 글자의 한자를 모르면 그 자리는 빈 문자열 \"\"). 화자가 한자를 아예 말하지 않았으면 hanjaChars는 null.\n" +
     "  예: name='김재진', 화자가 '김 실을재 보배진' → hanjaChars=['金','載','珍'].\n" +
-    "- 시각은 24시간제로: '낮 2시'·'오후 2시'→14, '저녁 7시'→19, '오전 9시'→9, '밤 11시'→23, '자정'→0, '정오'→12.\n" +
+    "- 시각(hour)은 24시간제로: '오후 2시'·'낮 2시'→14, '오후 3시'·'낮 3시'→15, '저녁 7시'→19, '오전 9시'→9, '밤 11시'→23, '자정'→0, '정오'→12. '세 시'처럼 한글 숫자도 인식(세=3). '반'은 30분.\n" +
     "- 연도가 두 자리면 상식적으로 보정(31~99→19xx, 00~30→20xx).\n" +
     "- calendarType은 '양력'|'음력'|'음력윤달'|null. '윤달'이라 하면 '음력윤달'.\n" +
     "- gender는 '남성'|'여성'|null.\n" +
     "- marital은 '기혼'|'미혼'|null. '결혼했다/결혼했고/유부남/유부녀/남편/아내/애 있다'→기혼, '솔로/싱글/혼자/미혼/결혼 안 했다'→미혼.\n" +
     "- phone(휴대폰 번호): 한국어로 부른 숫자를 아라비아 숫자로 바꿔라. 공/영/빵=0, 일=1, 이=2, 삼=3, 사=4, 오=5, 육/륙=6, 칠=7, 팔=8, 구=9. " +
     "예: '공일공 일이삼사 일이삼사'→'01012341234'. 숫자만 10~11자리 문자열로. 없으면 null.\n" +
-    '출력 형식(JSON only): {"name":string|null,"hanjaChars":array|null,"gender":string|null,"marital":string|null,"phone":string|null,"calendarType":string|null,"year":number|null,"month":number|null,"day":number|null,"hour":number|null,"minute":number|null}\n\n' +
+    "- email(이메일): 화자가 아이디와 도메인을 말한다. '골뱅이/앳'→@, '닷/점/쩜'→., 도메인은 '네이버닷컴'→naver.com, '지메일/구글'→gmail.com, '다음'→daum.net, '한메일'→hanmail.net, '네이트'→nate.com, '핫메일'→hotmail.com, '야후'→yahoo.com. " +
+    "영어 철자를 한 글자씩 말하면(에이,비,씨…) 알파벳으로 합쳐라. 예: '길동 골뱅이 네이버 닷컴'→'gildong@naver.com'(아이디를 한글로만 말하면 그대로 두되 영문 스펠링이 있으면 그것을 우선). 없으면 null.\n" +
+    '출력 형식(JSON only): {"name":string|null,"hanjaChars":array|null,"gender":string|null,"marital":string|null,"phone":string|null,"email":string|null,"calendarType":string|null,"year":number|null,"month":number|null,"day":number|null,"hour":number|null,"minute":number|null}\n\n' +
     '음성 텍스트: "' + String(transcript).slice(0, 1200) + '"';
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -562,6 +564,7 @@ async function parseVoiceWithClaude(transcript) {
     gender: (f.gender === "남성" || f.gender === "여성") ? f.gender : null,
     marital: (f.marital === "기혼" || f.marital === "미혼") ? f.marital : null,
     phone: fmtPhone(f.phone),
+    email: (f.email && /\S+@\S+\.\S+/.test(String(f.email))) ? String(f.email).replace(/\s+/g, "").toLowerCase() : null,
     calendarType: ["양력", "음력", "음력윤달"].includes(f.calendarType) ? f.calendarType : null,
     year: f.year ? parseInt(f.year, 10) : null,
     month: clampInt(f.month, 1, 12),
