@@ -48,6 +48,8 @@ def font_face_css() -> str:
   src:url('{_uri("NotoSansKR-Regular.otf")}') format('opentype'); }}
 @font-face {{ font-family:'SansKR'; font-weight:700; font-style:normal;
   src:url('{_uri("NotoSansKR-Bold.otf")}') format('opentype'); }}
+@font-face {{ font-family:'BookkMyungjo'; font-weight:400; font-style:normal;
+  src:url('{_uri("BookkMyungjo_Light.ttf")}') format('truetype'); }}
 """
 
 
@@ -149,7 +151,8 @@ body {{ string-set: docheader "{header_text}"; }}
 .sub-title {{ font-family:'SansKR'; font-size:16.8pt; font-weight:700; color:{t['ink']}; margin:5mm 0 2mm; break-after:avoid; page-break-after:avoid; }}
 
 p {{ margin:0 0 3mm; }}
-.body-text {{ font-size:21pt; text-align:left; line-height:1.95; letter-spacing:0.02em; word-break:keep-all; margin:0 0 4.5mm; }}
+.body-text {{ font-family:'BookkMyungjo','SerifKR',serif; font-size:21pt; text-align:left; line-height:1.95; letter-spacing:0.02em; word-break:keep-all; margin:0 0 4.5mm; }}
+.callout > div {{ font-family:'BookkMyungjo','SerifKR',serif; }}
 .lead {{ font-size:16.5pt; color:{t['ink']}; }}
 .muted {{ color:{t['ink_soft']}; }}
 strong, b {{ font-weight:700; }}

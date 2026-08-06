@@ -417,6 +417,16 @@
         <div class="section-title">💕 상대방 정보</div>
 
         <div class="form-row">
+          <label>두 분의 관계 <span class="hint">맞춤 풀이에 사용돼요</span></label>
+          <select id="relationship" style="width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:5px;font-size:13.5px;background:var(--paper);font-family:inherit;">
+            <option value="연인">연인 (미혼·연애 중)</option>
+            <option value="예비부부">예비부부 (결혼 준비 중)</option>
+            <option value="신혼부부">신혼부부 (결혼 초기)</option>
+            <option value="부부">부부 (결혼 생활 중)</option>
+          </select>
+        </div>
+
+        <div class="form-row">
           <label>이름 <span class="hint">한글</span></label>
           <input type="text" id="pName" placeholder="예: 홍길동" />
           <input type="hidden" id="pNameHanja" />
@@ -772,6 +782,7 @@
         hour: pHour ? Number(pHour) : null, minute: pMinute ? Number(pMinute) : null,
         zodiac: calcZodiac(pYear),
       };
+      payload.relationship = (document.getElementById("relationship") || {}).value || "";
     }
 
     orderModal.classList.remove("active");

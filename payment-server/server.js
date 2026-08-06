@@ -98,6 +98,7 @@ function buildPdfMeta(order) {
     customerName: order.customerName || "의뢰인",
     reportType: isEvent ? "이벤트 무료 사주" : (isCouple ? "궁합 분석" : (order.orderName || "종합 사주 분석")),
     product: order.orderName || "",   // 상품별 결과지 섹션 선택에 사용
+    relationship: order.relationship || "",   // 궁합: 연인/신혼/부부 맞춤 풀이
     reportYear: Number(order.reportYear) || DEFAULT_REPORT_YEAR,
     orderId: order.orderId,
     calendarType: cal,
@@ -198,7 +199,7 @@ app.post("/api/orders/register", requireCustomer, async (req, res) => {
   const {
     productName, productType,
     customerName, customerNameHanja, customerEmail, customerPhone,
-    person1, person2,
+    person1, person2, relationship,
   } = req.body;
 
   if (!productName || !customerName || !person1) {
@@ -240,6 +241,7 @@ app.post("/api/orders/register", requireCustomer, async (req, res) => {
       productType: productType || "single",
       person1: { ...person1, sajuInfo: sajuInfo1 },
       person2: productType === "couple" ? { ...person2, sajuInfo: sajuInfo2 } : null,
+      relationship: productType === "couple" ? (relationship || "") : "",
       sajuInfo: sajuInfo1,
       sajuResult: sajuResult1,
       sajuResult2,

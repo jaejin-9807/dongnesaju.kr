@@ -119,6 +119,13 @@ def _build_charts(data, tmp_dir):
     if data.get("gunghap"):
         charts.make_gunghap_gauge(data["gunghap"].get("score", 0), data["gunghap"].get("grade", "중"), _("gunghap.png"))
         cp["gunghap_gauge"] = uri("gunghap.png")
+        # 상대방(배우자/연인) 오행 도표 — 궁합 정량 자료
+        partner = data["gunghap"].get("partner") or {}
+        pod = partner.get("ohengDistribution") or {}
+        if pod:
+            charts.make_oheng_bar(pod, _("p_oheng_bar.png")); cp["partner_oheng_bar"] = uri("p_oheng_bar.png")
+            charts.make_oheng_pentagon(pod, _("p_oheng_penta.png"), ilgan=partner.get("ilgan"))
+            cp["partner_oheng_pentagon"] = uri("p_oheng_penta.png")
     return cp
 
 
