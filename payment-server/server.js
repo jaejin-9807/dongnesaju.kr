@@ -560,21 +560,44 @@ app.get("/api/admin/voice-test", requireAdmin, async (req, res) => {
     out.openai = { ok: false, status: "형식오류",
       detail: "키가 'sk-'로 시작하지 않습니다. 값을 다시 복사해 넣어 주세요." };
   } else {
+    // ★ 인증만 보는 /v1/models 로는 '잔액 0원'을 걸러내지 못한다.
+    //   실제 Whisper 에 0.2초 무음 파일을 보내, 결제까지 되는지(=사용 가능한지) 확인한다.
     try {
-      const r = await fetch("https://api.openai.com/v1/models", {
-        headers: { Authorization: `Bearer ${okey}` },
+      const wav = (() => {
+        const rate = 8000, n = Math.floor(0.2 * rate), dataLen = n * 2;
+        const b = Buffer.alloc(44 + dataLen);
+        b.write("RIFF", 0); b.writeUInt32LE(36 + dataLen, 4); b.write("WAVE", 8);
+        b.write("fmt ", 12); b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20);
+        b.writeUInt16LE(1, 22); b.writeUInt32LE(rate, 24); b.writeUInt32LE(rate * 2, 28);
+        b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34);
+        b.write("data", 36); b.writeUInt32LE(dataLen, 40);
+        return b;
+      })();
+      const form = new FormData();
+      form.append("file", new Blob([wav], { type: "audio/wav" }), "test.wav");
+      form.append("model", process.env.OPENAI_STT_MODEL || "whisper-1");
+      form.append("language", "ko");
+      const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+        method: "POST", headers: { Authorization: `Bearer ${okey}` }, body: form,
       });
+      const bodyTxt = await r.text().catch(() => "");
       if (r.ok) {
-        out.openai = { ok: true, status: "정상", detail: "키 인증 성공. 음성인식을 사용할 수 있습니다." };
+        out.openai = { ok: true, status: "정상 (잔액 있음)",
+          detail: "실제 음성 변환까지 성공했습니다. 녹음 기능을 바로 사용할 수 있습니다." };
       } else if (r.status === 401) {
         out.openai = { ok: false, status: "인증실패(401)",
           detail: "키가 잘못되었거나 폐기되었습니다. OpenAI에서 새 키를 발급해 교체해 주세요." };
       } else if (r.status === 429) {
-        out.openai = { ok: false, status: "잔액부족(429)",
-          detail: "OpenAI 계정에 크레딧이 없습니다. platform.openai.com → Billing 에서 결제수단 등록 후 충전(최소 $5)이 필요합니다." };
+        const noCredit = /insufficient_quota|exceeded your current quota|billing/i.test(bodyTxt);
+        out.openai = { ok: false, status: noCredit ? "잔액부족 — 충전 필요" : "요청한도 초과(429)",
+          detail: noCredit
+            ? "키는 정상이지만 <b>크레딧이 없습니다</b>. platform.openai.com → Billing 에서 결제수단 등록 후 최소 $5를 충전해 주세요. (ChatGPT 구독과 API 요금은 별개입니다)"
+            : "짧은 시간에 요청이 많았습니다. 잠시 후 다시 확인해 주세요." };
+      } else if (r.status === 400 && /model/i.test(bodyTxt)) {
+        out.openai = { ok: false, status: "모델 오류(400)",
+          detail: "OPENAI_STT_MODEL 값을 확인해 주세요. 기본값은 whisper-1 입니다." };
       } else {
-        const t = await r.text().catch(() => "");
-        out.openai = { ok: false, status: `오류(${r.status})`, detail: t.slice(0, 160) };
+        out.openai = { ok: false, status: `오류(${r.status})`, detail: bodyTxt.slice(0, 200) };
       }
     } catch (e) {
       out.openai = { ok: false, status: "연결실패", detail: e.message };
@@ -596,11 +619,25 @@ app.get("/api/admin/voice-test", requireAdmin, async (req, res) => {
           messages: [{ role: "user", content: "ok" }],
         }),
       });
-      if (r.ok) out.anthropic = { ok: true, status: "정상", detail: "키 인증 성공. 결과지 해석 AI가 작동합니다." };
-      else {
-        const t = await r.text().catch(() => "");
-        out.anthropic = { ok: false, status: `오류(${r.status})`,
-          detail: r.status === 401 ? "키가 잘못되었습니다." : (r.status === 429 ? "사용량 한도(크레딧)를 확인해 주세요." : t.slice(0, 160)) };
+      // 실제 메시지 생성(과금 경로)까지 호출하므로 잔액 부족도 여기서 드러난다.
+      const t = await r.text().catch(() => "");
+      if (r.ok) {
+        out.anthropic = { ok: true, status: "정상 (잔액 있음)",
+          detail: "실제 해석 호출까지 성공했습니다. 결과지 AI 해석이 정상 작동합니다." };
+      } else if (r.status === 401) {
+        out.anthropic = { ok: false, status: "인증실패(401)",
+          detail: "키가 잘못되었거나 폐기되었습니다. console.anthropic.com 에서 새 키를 발급해 교체해 주세요." };
+      } else if (r.status === 400 && /credit balance is too low|billing/i.test(t)) {
+        out.anthropic = { ok: false, status: "잔액부족 — 충전 필요",
+          detail: "키는 정상이지만 <b>크레딧이 없습니다</b>. console.anthropic.com → Billing 에서 충전해 주세요. 이 상태면 결과지 해석이 고정 문구로 대체되어 <b>내용이 서로 비슷해집니다</b>." };
+      } else if (r.status === 429) {
+        out.anthropic = { ok: false, status: "요청한도 초과(429)",
+          detail: "잠시 후 다시 확인해 주세요. 반복되면 Billing의 사용 한도(Usage limits)를 확인하세요." };
+      } else if (r.status === 404 && /model/i.test(t)) {
+        out.anthropic = { ok: false, status: "모델 오류(404)",
+          detail: `ANTHROPIC_MODEL 값(${process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5"})을 확인해 주세요.` };
+      } else {
+        out.anthropic = { ok: false, status: `오류(${r.status})`, detail: t.slice(0, 200) };
       }
     } catch (e) {
       out.anthropic = { ok: false, status: "연결실패", detail: e.message };
