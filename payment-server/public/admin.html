@@ -166,7 +166,12 @@
   </div>
 
   <div id="visitsView" style="display:none;">
-    <div class="sub">사이트에 다녀간 방문자 수입니다. (한국 시간 기준 · 같은 사람은 하루 1명으로 계산)</div>
+    <div class="sub">사이트에 다녀간 방문자 수입니다. (한국 시간 기준)</div>
+    <div style="background:#FBF4E2;border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin-top:10px;font-size:12.5px;line-height:1.7;color:var(--ink);">
+      <b>📌 두 숫자의 차이</b><br>
+      · <b>방문자</b> — 실제로 다녀간 <b>사람 수</b>입니다. 같은 사람이 하루에 열 번을 와도 <b>1명</b>으로 셉니다. <b>← 이 숫자를 보시면 됩니다</b><br>
+      · <b>페이지 열람</b> — 페이지를 몇 번 열었는지 세는 <b>참고용</b> 숫자입니다. 한 사람이 홈→상품→마이페이지를 보면 3회로 잡힙니다.
+    </div>
     <div class="view-tabs" id="visitTabs" style="margin-top:12px;">
       <button class="view-tab active" data-range="today">오늘</button>
       <button class="view-tab" data-range="week">최근 7일</button>
@@ -562,21 +567,24 @@
       cards.innerHTML = `<div class="sub">오류: ${e.message}</div>`;
     }
   }
-  function card(label, value, unit, strong) {
-    return `<div style="flex:1;min-width:150px;background:var(--paper-2);border:1px solid var(--line);border-radius:10px;padding:14px 16px;${strong ? "border-color:var(--gold);" : ""}">
+  function card(label, value, unit, strong, note) {
+    return `<div style="flex:1;min-width:150px;background:var(--paper-2);border:1px solid var(--line);border-radius:10px;padding:14px 16px;${strong ? "border-color:var(--gold);border-width:2px;" : ""}">
       <div style="font-size:12.5px;color:var(--text-sub);font-weight:700;">${label}</div>
       <div style="font-size:26px;font-weight:800;color:var(--ink);margin-top:4px;">${Number(value).toLocaleString()}<span style="font-size:13px;font-weight:600;color:var(--text-sub);"> ${unit}</span></div>
+      ${note ? `<div style="font-size:11px;color:var(--text-sub);margin-top:3px;line-height:1.45;">${note}</div>` : ""}
     </div>`;
   }
   function renderVisits() {
     if (!visitStats) return;
     const s = visitStats[visitRange] || { pv: 0, uv: 0, rows: [] };
     const label = visitRange === "today" ? "오늘" : (visitRange === "week" ? "최근 7일" : "최근 30일");
+    const perPerson = s.uv ? (s.pv / s.uv).toFixed(1) : "0";
     document.getElementById("visitCards").innerHTML =
-      card(`${label} 방문자 수`, s.uv, "명", true) +
-      card(`${label} 조회수`, s.pv, "회") +
-      card("오늘 방문자", visitStats.today.uv, "명") +
-      card("최근 30일 방문자", visitStats.month.uv, "명");
+      card(`${label} 방문자`, s.uv, "명", true, "같은 사람이 여러 번 와도 <b>1명</b>으로 계산") +
+      card("오늘 방문자", visitStats.today.uv, "명", false, "오늘 다녀간 실제 사람 수") +
+      card("최근 7일 방문자", visitStats.week.uv, "명", false, "7일간 다녀간 사람 수(중복 제외)") +
+      card("최근 30일 방문자", visitStats.month.uv, "명", false, "30일간 다녀간 사람 수(중복 제외)") +
+      card(`${label} 페이지 열람`, s.pv, "회", false, `한 사람이 평균 <b>${perPerson}쪽</b>씩 열어봤어요`);
 
     // 간단 막대그래프(일자별 방문자)
     const rows = s.rows || [];
@@ -600,8 +608,8 @@
       `<div style="background:var(--paper-2);border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:14px;">
         <table style="width:100%;border-collapse:collapse;font-size:13px;">
           <tr><th style="text-align:left;padding:6px;border-bottom:1px solid var(--line);">날짜</th>
-              <th style="text-align:right;padding:6px;border-bottom:1px solid var(--line);">방문자</th>
-              <th style="text-align:right;padding:6px;border-bottom:1px solid var(--line);">조회수</th></tr>
+              <th style="text-align:right;padding:6px;border-bottom:1px solid var(--line);">방문자(명)</th>
+              <th style="text-align:right;padding:6px;border-bottom:1px solid var(--line);">페이지 열람(회)</th></tr>
           ${rows.slice().reverse().map((r) => `<tr>
             <td style="padding:6px;">${r.date}</td>
             <td style="padding:6px;text-align:right;font-weight:700;">${r.uv}</td>

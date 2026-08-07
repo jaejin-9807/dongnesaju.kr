@@ -607,7 +607,7 @@
 
       <div class="vg-tip">
         💡 <b>한자 이름</b>도 말할 수 있어요 —<br>
-        “성 김, 실을 재, 보배 진” 처럼 <b>뜻과 음</b>을 말씀하시면 됩니다.<br><br>
+        “클 홍, 길할 길, 아이 동” 처럼 <b>뜻과 음</b>을 말씀하시면 됩니다.<br><br>
         💡 모르는 항목은 <b>빼고 말해도</b> 괜찮아요. 나중에 직접 고칠 수 있습니다.
       </div>
 
@@ -711,11 +711,16 @@
       `<span>${selectedProduct.name}</span><span class="price">${selectedProduct.price.toLocaleString()}원</span>`;
     partnerSection.classList.toggle("active", selectedProduct.type === "couple");
     if (loggedInUser) {
-      document.getElementById("fName").value = loggedInUser.name || "";
+      // 이름은 자동으로 채우지 않는다.
+      //  소셜 로그인(구글 등) 계정명이 영문이거나 실제 사주 대상과 다를 수 있어,
+      //  빈칸 + '예: 홍길동' 안내만 보여 주고 직접(또는 음성으로) 입력하게 한다.
+      const nEl = document.getElementById("fName");
+      nEl.value = "";
+      nEl.placeholder = "예: 홍길동";
+      nEl.dispatchEvent(new Event("input"));   // 한자 선택기 초기화
+      // 연락처는 결과 안내에 쓰이므로 계정 정보를 채워 준다.
       document.getElementById("fEmail").value = loggedInUser.email || "";
       document.getElementById("fPhone").value = loggedInUser.phone || "";
-      // 이름을 자동으로 채운 경우, 한자 선택기도 다시 그리도록 input 이벤트 발생
-      document.getElementById("fName").dispatchEvent(new Event("input"));
     }
     orderModal.classList.add("active");
   }
