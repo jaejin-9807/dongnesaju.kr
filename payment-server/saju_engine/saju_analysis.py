@@ -592,17 +592,83 @@ def calc_gunghap(pillars_a: SajuPillars, pillars_b: SajuPillars) -> GunghapResul
             hhp_hits.append(f"{''.join(sorted(hyeong_set))} 형(刑)")
 
     # --- 점수 산출 ---
-    score = 60  # 기본 중립 점수
-    if "비화" in ilgan_relation or "상생" in ilgan_relation:
-        score += 15
-    elif "상극" in ilgan_relation:
-        score -= 8
+    # 합충 개수만 세면 서로 다른 커플이 같은 점수로 뭉치므로,
+    # ① 자리(일지=배우자궁 > 월지 > 연/시지)별 가중치 ② 오행 보완도 ③ 용신 궁합을 함께 반영한다.
+    score = 60.0
 
-    score += min(len(yukhap_hits) * 8, 24)
-    score += min(len(samhap_hits) * 10, 20)
-    score -= min(len(chung_hits) * 10, 30)
-    score -= min(len(hhp_hits) * 6, 18)
-    score = max(0, min(100, score))
+    if "비화" in ilgan_relation:
+        score += 12
+    elif "상생" in ilgan_relation:
+        score += 16
+    elif "상극" in ilgan_relation:
+        score -= 9
+
+    # ① 자리 가중치: 일지(배우자 자리)에서 일어난 합/충이 가장 크게 작용
+    POS_W = {2: 1.6, 1: 1.2, 0: 0.9, 3: 0.9}   # index: 0연 1월 2일 3시
+
+    def _pair_weight(hits_pairs):
+        total = 0.0
+        for ia, ib in hits_pairs:
+            total += (POS_W.get(ia, 1.0) + POS_W.get(ib, 1.0)) / 2.0
+        return total
+
+    yh_pairs, ch_pairs, hp_pairs = [], [], []
+    for ia, ja in enumerate(jiji_a):
+        for ib, jb in enumerate(jiji_b):
+            pair = tuple(sorted([ja, jb]))
+            if pair in JIJI_YUKHAP:
+                yh_pairs.append((ia, ib))
+            if JIJI_CHUNG.get(ja) == jb:
+                ch_pairs.append((ia, ib))
+            if JIJI_HAE.get(ja) == jb or JIJI_PA.get(ja) == jb:
+                hp_pairs.append((ia, ib))
+
+    score += min(_pair_weight(yh_pairs) * 7.0, 22)
+    score += min(len(samhap_hits) * 9.0, 18)
+    score -= min(_pair_weight(ch_pairs) * 8.5, 26)
+    score -= min(_pair_weight(hp_pairs) * 4.5, 15)
+
+    # ② 오행 보완도: 상대가 내 부족한 오행을 채워 주는가(서로 채워 줄수록 가점)
+    try:
+        da = calc_oheng_distribution(pillars_a).counts
+        db = calc_oheng_distribution(pillars_b).counts
+        comp = 0.0
+        for o in ("목", "화", "토", "금", "수"):
+            a_n, b_n = da.get(o, 0), db.get(o, 0)
+            if a_n == 0 and b_n >= 2:
+                comp += 2.6
+            if b_n == 0 and a_n >= 2:
+                comp += 2.6
+            if a_n >= 4 and b_n >= 4:      # 같은 기운이 둘 다 과다 → 충돌
+                comp -= 1.6
+        score += max(-6.0, min(comp, 11.0))
+        # 두 사람 오행 분포의 균형(합산이 고를수록 가점)
+        merged = [da.get(o, 0) + db.get(o, 0) for o in ("목", "화", "토", "금", "수")]
+        spread = max(merged) - min(merged)
+        score += (4.0 - spread) * 0.9        # spread 작을수록 +, 클수록 -
+    except Exception:
+        pass
+
+    # ③ 용신 궁합: 상대의 강한 오행이 내게 필요한 기운(용신/희신)인가
+    try:
+        ya = calc_yongsin(pillars_a, calc_oheng_distribution(pillars_a))
+        yb = calc_yongsin(pillars_b, calc_oheng_distribution(pillars_b))
+        a_strong = max(da, key=da.get) if da else None
+        b_strong = max(db, key=db.get) if db else None
+        if b_strong and b_strong in (ya.yongsin, ya.huisin):
+            score += 5.0
+        if a_strong and a_strong in (yb.yongsin, yb.huisin):
+            score += 5.0
+        if b_strong and b_strong in (ya.gisin, ya.gusin):
+            score -= 4.0
+        if a_strong and a_strong in (yb.gisin, yb.gusin):
+            score -= 4.0
+    except Exception:
+        pass
+
+    # ④ 변별력 확대: 60점 기준에서 벗어난 편차를 넓혀 커플별로 점수가 뚜렷이 갈리게 한다.
+    score = 60.0 + (score - 60.0) * 1.9
+    score = int(round(max(18, min(96, score))))
 
     if score >= 75:
         grade = "상"

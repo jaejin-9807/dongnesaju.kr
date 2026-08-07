@@ -21,6 +21,7 @@ const socialAuthRoutes = require("./routes/socialAuth");
 const adminAuthRoutes = require("./routes/adminAuth");
 const orderStore = require("./orderStore");
 const userStore = require("./userStore");
+const visitStore = require("./visitStore");
 const { calculateSaju, generatePdf, probeRenderEngines } = require("./sajuEngine");
 const { fulfillOrder, PDF_OUTPUT_DIR } = require("./fulfillOrder");
 const { sendResultToCustomer, sendResultSmsToCustomer } = require("./mailer");
@@ -35,6 +36,30 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieMiddleware);
+
+// ---------------------------------------------------------------
+// 방문자 집계: 사이트 페이지를 열 때마다 기록한다.
+//  - 같은 사람은 하루에 1명으로 계산(방문자 쿠키 vid, 1년 유지)
+//  - 관리자 페이지·API·정적 리소스는 집계에서 제외
+// ---------------------------------------------------------------
+app.use((req, res, next) => {
+  try {
+    if (req.method !== "GET") return next();
+    const p = req.path || "";
+    const isPage = p === "/" || p.endsWith(".html");
+    const skip = p.startsWith("/api/") || p.startsWith("/admin") || p.includes("admin");
+    if (isPage && !skip) {
+      let vid = req.cookies && req.cookies.vid;
+      if (!vid) {
+        vid = nanoid(16);
+        res.cookie("vid", vid, { maxAge: 365 * 24 * 3600 * 1000, sameSite: "lax" });
+      }
+      visitStore.record(vid);
+    }
+  } catch (e) { /* 집계 실패가 서비스에 영향 주지 않도록 무시 */ }
+  next();
+});
+
 app.use(express.static(path.join(__dirname, "public")));
 
 app.use("/api/auth", authRoutes);
@@ -507,6 +532,70 @@ app.post("/api/admin/orders/:orderId/send-sms", requireAdmin, async (req, res) =
     res.status(500).json({ success: false, message: "문자 발송 중 오류가 발생했습니다: " + e.message });
   }
 });
+
+// ---------------------------------------------------------------
+// 관리자 전용: 사이트 방문자 통계 (일간·주간·월간)
+// ---------------------------------------------------------------
+app.get("/api/admin/visits", requireAdmin, (req, res) => {
+  try {
+    res.json({ success: true, stats: visitStore.stats() });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "방문자 통계를 불러오지 못했습니다: " + e.message });
+  }
+});
+
+// ---------------------------------------------------------------
+// 음성 녹음 → 텍스트 변환 (OpenAI Whisper)
+//  브라우저 내장 음성인식보다 정확도가 훨씬 높아, 장년층 발화·한자 훈음도 잘 잡는다.
+//  .env(OPENAI_API_KEY)가 없으면 실패를 돌려주고, 클라이언트는 기존 방식으로 폴백한다.
+// ---------------------------------------------------------------
+app.post(
+  "/api/voice/transcribe",
+  requireCustomer,
+  express.raw({ type: ["audio/*", "application/octet-stream"], limit: "25mb" }),
+  async (req, res) => {
+    const key = process.env.OPENAI_API_KEY;
+    if (!key) {
+      return res.json({ success: false, message: "whisper_not_configured" });
+    }
+    const buf = req.body;
+    if (!buf || !buf.length) {
+      return res.status(400).json({ success: false, message: "녹음 파일이 비어 있습니다." });
+    }
+    try {
+      const ct = String(req.headers["content-type"] || "audio/webm");
+      const ext = ct.includes("mp4") ? "mp4" : ct.includes("ogg") ? "ogg" : ct.includes("wav") ? "wav" : "webm";
+      const form = new FormData();
+      form.append("file", new Blob([buf], { type: ct }), `voice.${ext}`);
+      form.append("model", process.env.OPENAI_STT_MODEL || "whisper-1");
+      form.append("language", "ko");
+      // 인식 정확도를 높이는 힌트(도메인 어휘)
+      form.append(
+        "prompt",
+        "사주 정보 받아쓰기. 이름, 성별(남자/여자), 혼인 여부(기혼/미혼), 양력/음력/윤달, " +
+        "생년월일, 태어난 시각(오전/오후/새벽/저녁), 휴대폰 번호, 이메일. " +
+        "한자 이름은 '성 김, 실을 재, 보배 진'처럼 뜻과 음으로 말합니다."
+      );
+      const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}` },
+        body: form,
+      });
+      if (!r.ok) {
+        const errTxt = await r.text().catch(() => "");
+        console.error("Whisper 오류:", r.status, errTxt.slice(0, 200));
+        return res.json({ success: false, message: "whisper_failed", code: r.status });
+      }
+      const data = await r.json();
+      const text = (data && data.text ? String(data.text) : "").trim();
+      if (!text) return res.json({ success: false, message: "empty_transcript" });
+      res.json({ success: true, transcript: text });
+    } catch (e) {
+      console.error("음성 변환 실패:", e.message);
+      res.json({ success: false, message: "whisper_error", code: e.message });
+    }
+  }
+);
 
 // ---------------------------------------------------------------
 // 음성 입력 → 필드 자동 추출 (Claude). 장년층 편의: 말로 이름·생년월일·시각을 채운다.

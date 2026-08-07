@@ -894,9 +894,31 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
         body_parts.append(f"<div class='chart-wrap'><img src='{chart_paths['monthly']}' style='width:100%'/></div>")
     if not compact:
         _sub("1월부터 12월까지 월별 운의 흐름")
+        _yv, _hv = yongsin.get("yongsin"), yongsin.get("huisin")
+        _gv, _kv = yongsin.get("gisin"), yongsin.get("gusin")
         for w in wolun:
             key = f"{w['month']}월운세"
-            body = txt(key, w.get("keyword", ""))
+            _wo = w.get("oheng")
+            # 그 달의 기운이 나에게 어떤 작용을 하는지(용신/기신 관계)로 개인화된 기본 문장을 만든다.
+            if _wo and _wo == _yv:
+                _base = (f"{w['month']}월은 {customer_name} 님께 가장 힘이 되는 {_wo} 기운이 드는 달입니다. "
+                         "미뤄 둔 일을 시작하거나 중요한 만남·결정을 배치하기에 좋고, 노력한 만큼 결과가 따라옵니다.")
+            elif _wo and _wo == _hv:
+                _base = (f"{w['month']}월은 나를 돕는 {_wo} 기운이 함께하는 달입니다. "
+                         "큰 무리 없이 일이 풀리니, 사람을 만나고 관계를 넓히기에 알맞습니다.")
+            elif _wo and _wo == _gv:
+                _base = (f"{w['month']}월은 {_wo} 기운이 강해져 다소 버겁게 느껴질 수 있는 달입니다. "
+                         "큰 결정과 지출은 한 박자 늦추고, 건강과 감정 관리에 특히 신경 쓰세요.")
+            elif _wo and _wo == _kv:
+                _base = (f"{w['month']}월은 {_wo} 기운이 흐름을 방해하기 쉬운 달입니다. "
+                         "새로 벌이기보다 진행 중인 일을 점검하고 마무리하는 데 힘을 쓰면 좋습니다.")
+            else:
+                _base = (f"{w['month']}월은 {_wo or '평이한'} 기운이 흐르는 무난한 달입니다. "
+                         "큰 기복 없이 지나가니, 평소 하던 일을 꾸준히 이어가며 다음 기회를 준비하세요.")
+            _kw = w.get("keyword", "")
+            if _kw:
+                _base += f" 이 달의 열쇳말은 '{_kw}'입니다."
+            body = txt(key, _base)
             body_parts.append(f"<div class='sub-title'>{w['month']}월 — {esc(w.get('ganji',''))}</div>{_p(body)}")
     _sub("월별로 집중하면 좋은 행동 방향")
     body_parts.append(_p(f"기회가 커지는 {_op}에는 새로운 시도와 중요한 결정을, {_ca}에는 점검과 마무리에 집중하세요. 매달 초 그 달의 목표 하나를 정해 두면 흐름을 타기 쉽습니다."))
@@ -912,12 +934,44 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
         body_parts.append(f"<div class='callout'><div class='callout-label'>현재 대운: {esc(cur_daeun_pillar)} ({cur_daeun_age}세~{cur_daeun_age+9}세)</div>"
                           f"<div>{report_year}년 기준 만 {cur_age}세 전후로, 이 대운의 영향 안에 있습니다.</div></div>")
     body_parts.append(_p(txt("p10_흐름", txt("대운세운해설"))))
+    # ---- 앞으로의 대운을 '내 사주 데이터'로 직접 풀어낸다(고정문구 제거) ----
+    _fut = [i for i in range(len(_ds["ages"])) if _ds["ages"][i] + 9 >= cur_age][:4]
+    if _fut:
+        rows = []
+        for i in _fut:
+            a0 = _ds["ages"][i]; sc = _ds["scores"][i]; oh = _ds["ohengs"][i] or "-"
+            pil = _ds["pillars"][i] if i < len(_ds["pillars"]) else "-"
+            tone = ("기운이 크게 오르는 시기" if sc >= 78 else
+                    "안정 속에 성과가 쌓이는 시기" if sc >= 62 else
+                    "속도를 늦추고 내실을 다질 시기" if sc >= 45 else
+                    "무리하지 않고 몸과 마음을 지킬 시기")
+            rows.append(f"<tr><td style='white-space:nowrap'>{a0}~{a0+9}세</td><td>{esc(pil)}</td>"
+                        f"<td>{esc(oh)}</td><td style='text-align:left'>{tone}</td></tr>")
+        body_parts.append("<div class='card'><table><tr><th>시기</th><th>대운</th><th>기운</th><th>흐름</th></tr>"
+                          + "".join(rows) + "</table></div>")
+        _b = _fut[0]
+        _bi = max(_fut, key=lambda k: _ds["scores"][k])
+        _wi = min(_fut, key=lambda k: _ds["scores"][k])
+        body_parts.append(_p(
+            f"지금부터 이어지는 {_ds['ages'][_b]}세 대운은 {_ds['ohengs'][_b] or '-'} 기운이 중심입니다. "
+            f"{customer_name} 님께 필요한 기운({yongsin.get('yongsin','-')})과 견주어 보면, "
+            f"앞으로의 흐름 중 {_ds['ages'][_bi]}세~{_ds['ages'][_bi]+9}세 구간이 가장 힘을 받고, "
+            f"{_ds['ages'][_wi]}세~{_ds['ages'][_wi]+9}세 구간은 한 박자 쉬어 가는 것이 좋습니다."))
+
     _sub("직업 · 사업 · 재물의 변화 가능성")
+    _jd = "재성" if any("재" in str(v) for v in sipseong.values()) else ("관성" if any("관" in str(v) for v in sipseong.values()) else "식상")
     body_parts.append(_p(txt("p10_직재", txt("사업운창업운",
-        "앞으로 10년은 지금 쌓는 실력과 인맥이 성과로 이어지는 시기입니다. 상승기에는 확장을, 정체기에는 내실을 다지세요."))))
+        f"{customer_name} 님 사주는 {_jd}의 힘이 두드러져, 앞으로 10년은 "
+        + ("실질적인 수익과 자산을 키우는 쪽" if _jd == "재성" else
+           "책임과 직위를 통해 자리를 다지는 쪽" if _jd == "관성" else
+           "가진 재주와 표현력을 성과로 바꾸는 쪽")
+        + f"에서 변화가 큽니다. 기운이 오르는 {_op} 무렵에 중요한 결정을 배치하고, {_ca}에는 확장을 미루세요."))))
     _sub("연애 · 결혼 · 가정운의 주요 시기")
     body_parts.append(_p(txt("p10_연가", txt("결혼운배우자운",
-        "인연과 가정의 큰 변화는 기운이 오르는 대운 시기에 찾아오기 쉽습니다. 그 시기에 맞춰 중요한 결정을 하면 좋습니다."))))
+        (f"인연과 가정의 큰 변화는 {_ds['ages'][_bi]}세 무렵 기운이 오르는 대운에서 찾아오기 쉽습니다. "
+         if _fut else "인연과 가정의 변화는 기운이 오르는 대운 시기에 찾아오기 쉽습니다. ")
+        + ("이미 가정을 이루셨다면 이 시기에 관계를 새롭게 다지는 계기가 생깁니다."
+           if is_senior or _is_couple else "이 시기에 맞춰 중요한 결정을 하면 순조롭습니다.")))))
     _sub("인생의 중요한 전환점과 준비 방향")
     if _next_change is not None:
         body_parts.append(_p(f"가장 큰 전환점은 {_next_change}세 무렵 시작되는 대운입니다. 그 전에 실력·자금·관계를 준비해 두면 전환기를 기회로 바꿀 수 있습니다."))
@@ -952,6 +1006,16 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
     rows = "".join(f"<tr><td style='white-space:nowrap;font-weight:700'>{esc(t)}</td><td style='text-align:left'>{esc(plain(GLOSSARY[t]))}</td></tr>"
                    for t in glo_terms if t in GLOSSARY)
     body_parts.append(f"<div class='card'><table><tr><th style='width:22mm'>용어</th><th>풀이</th></tr>{rows}</table></div>")
+    # 공통 개념 설명은 본문에서 빼고 이곳(부록)에 한 번만 싣는다 — 결과지마다 같은 문장이 반복되는 것을 막기 위함.
+    if not compact:
+        body_parts.append(
+            "<div class='card'><b>사주는 이렇게 읽습니다</b><br>"
+            "사주 원국은 연주·월주·일주·시주 네 기둥, 총 여덟 글자로 이루어지며 그중 <b>일간</b>이 나 자신을 상징하는 중심축입니다. "
+            "일간을 기준으로 나머지 글자와의 관계를 살펴 십성과 오행의 균형을 파악하고, 이를 통해 타고난 성격과 재능, 인생의 큰 흐름을 읽습니다.<br><br>"
+            "<b>대운</b>은 10년 단위로 삶의 큰 흐름을 좌우합니다. 대운이 좋은 시기에는 타고난 강점이 잘 드러나 성취와 확장의 기회가 많아지고, "
+            "흐름이 약한 시기에는 무리한 확장보다 내실을 다지는 편이 안전합니다.<br><br>"
+            "<b>신살</b>은 사주에 나타나는 특별한 기운의 조합으로, 그 자체로 좋고 나쁨이 정해진 것이 아니라 "
+            "전체 균형 속에서 어떻게 쓰이느냐에 따라 강점도 약점도 될 수 있습니다.</div>")
 
     # ===================== 27. 분석 기준 및 면책 =====================
     body_parts.append(_chapter_head(reg, "부록 2", "분석 기준과 안내"))

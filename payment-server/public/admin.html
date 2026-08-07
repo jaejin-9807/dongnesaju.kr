@@ -120,6 +120,7 @@
   <div class="view-tabs" id="viewTabs">
     <button class="view-tab active" data-view="orders">📋 주문 관리</button>
     <button class="view-tab" data-view="members">👥 회원 관리</button>
+    <button class="view-tab" data-view="visits">📊 방문자 통계</button>
   </div>
 
   <div id="ordersView">
@@ -153,6 +154,18 @@
     <div class="search-box"><input id="memberSearch" type="text" placeholder="🔍 이름 · 이메일 · 전화번호 검색" /></div>
     <div id="memberSummary" class="sub" style="font-weight:700;color:var(--ink);"></div>
     <div id="memberList"></div>
+  </div>
+
+  <div id="visitsView" style="display:none;">
+    <div class="sub">사이트에 다녀간 방문자 수입니다. (한국 시간 기준 · 같은 사람은 하루 1명으로 계산)</div>
+    <div class="view-tabs" id="visitTabs" style="margin-top:12px;">
+      <button class="view-tab active" data-range="today">오늘</button>
+      <button class="view-tab" data-range="week">최근 7일</button>
+      <button class="view-tab" data-range="month">최근 30일</button>
+    </div>
+    <div id="visitCards" style="display:flex;gap:12px;flex-wrap:wrap;margin:14px 0;"></div>
+    <div id="visitChart"></div>
+    <div id="visitTable"></div>
   </div>
 </main>
 
@@ -487,15 +500,89 @@
   }
   document.getElementById("viewTabs").addEventListener("click", (e) => {
     const b = e.target.closest(".view-tab"); if (!b) return;
-    document.querySelectorAll(".view-tab").forEach((t) => t.classList.remove("active"));
+    document.querySelectorAll("#viewTabs .view-tab").forEach((t) => t.classList.remove("active"));
     b.classList.add("active");
     const v = b.dataset.view;
     document.getElementById("ordersView").style.display = v === "orders" ? "" : "none";
     document.getElementById("membersView").style.display = v === "members" ? "" : "none";
-    document.getElementById("pageTitle").textContent = v === "members" ? "회원 관리" : "주문 관리";
+    document.getElementById("visitsView").style.display = v === "visits" ? "" : "none";
+    document.getElementById("pageTitle").textContent =
+      v === "members" ? "회원 관리" : (v === "visits" ? "방문자 통계" : "주문 관리");
     if (v === "members") loadMembers();
+    if (v === "visits") loadVisits();
   });
   document.getElementById("memberSearch").addEventListener("input", renderMembers);
+
+  // ===== 방문자 통계 탭 =====
+  let visitStats = null;
+  let visitRange = "today";
+  async function loadVisits() {
+    const cards = document.getElementById("visitCards");
+    cards.innerHTML = `<div class="sub">불러오는 중…</div>`;
+    try {
+      const res = await fetch("/api/admin/visits");
+      const data = await res.json();
+      if (!data.success) { cards.innerHTML = `<div class="sub">${data.message || "불러오기 실패"}</div>`; return; }
+      visitStats = data.stats;
+      renderVisits();
+    } catch (e) {
+      cards.innerHTML = `<div class="sub">오류: ${e.message}</div>`;
+    }
+  }
+  function card(label, value, unit, strong) {
+    return `<div style="flex:1;min-width:150px;background:var(--paper-2);border:1px solid var(--line);border-radius:10px;padding:14px 16px;${strong ? "border-color:var(--gold);" : ""}">
+      <div style="font-size:12.5px;color:var(--text-sub);font-weight:700;">${label}</div>
+      <div style="font-size:26px;font-weight:800;color:var(--ink);margin-top:4px;">${Number(value).toLocaleString()}<span style="font-size:13px;font-weight:600;color:var(--text-sub);"> ${unit}</span></div>
+    </div>`;
+  }
+  function renderVisits() {
+    if (!visitStats) return;
+    const s = visitStats[visitRange] || { pv: 0, uv: 0, rows: [] };
+    const label = visitRange === "today" ? "오늘" : (visitRange === "week" ? "최근 7일" : "최근 30일");
+    document.getElementById("visitCards").innerHTML =
+      card(`${label} 방문자 수`, s.uv, "명", true) +
+      card(`${label} 조회수`, s.pv, "회") +
+      card("오늘 방문자", visitStats.today.uv, "명") +
+      card("최근 30일 방문자", visitStats.month.uv, "명");
+
+    // 간단 막대그래프(일자별 방문자)
+    const rows = s.rows || [];
+    const max = Math.max(1, ...rows.map((r) => r.uv));
+    document.getElementById("visitChart").innerHTML = rows.length <= 1 ? "" :
+      `<div style="background:var(--paper-2);border:1px solid var(--line);border-radius:10px;padding:16px;">
+        <div style="font-size:13px;font-weight:800;color:var(--ink);margin-bottom:12px;">일자별 방문자 수</div>
+        <div style="display:flex;align-items:flex-end;gap:3px;height:130px;">
+          ${rows.map((r) => `<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;" title="${r.date} · ${r.uv}명">
+            <div style="font-size:10px;color:var(--text-sub);">${r.uv || ""}</div>
+            <div style="width:100%;background:var(--gold);border-radius:3px 3px 0 0;height:${Math.round((r.uv / max) * 100)}%;min-height:${r.uv ? 3 : 0}px;"></div>
+          </div>`).join("")}
+        </div>
+        <div style="display:flex;gap:3px;margin-top:6px;">
+          ${rows.map((r, i) => `<div style="flex:1;text-align:center;font-size:9.5px;color:var(--text-sub);">${(rows.length > 10 && i % 3 !== 0) ? "" : r.date.slice(5)}</div>`).join("")}
+        </div>
+      </div>`;
+
+    // 표
+    document.getElementById("visitTable").innerHTML = rows.length <= 1 ? "" :
+      `<div style="background:var(--paper-2);border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:14px;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <tr><th style="text-align:left;padding:6px;border-bottom:1px solid var(--line);">날짜</th>
+              <th style="text-align:right;padding:6px;border-bottom:1px solid var(--line);">방문자</th>
+              <th style="text-align:right;padding:6px;border-bottom:1px solid var(--line);">조회수</th></tr>
+          ${rows.slice().reverse().map((r) => `<tr>
+            <td style="padding:6px;">${r.date}</td>
+            <td style="padding:6px;text-align:right;font-weight:700;">${r.uv}</td>
+            <td style="padding:6px;text-align:right;color:var(--text-sub);">${r.pv}</td></tr>`).join("")}
+        </table>
+      </div>`;
+  }
+  document.getElementById("visitTabs").addEventListener("click", (e) => {
+    const b = e.target.closest(".view-tab"); if (!b) return;
+    document.querySelectorAll("#visitTabs .view-tab").forEach((t) => t.classList.remove("active"));
+    b.classList.add("active");
+    visitRange = b.dataset.range;
+    renderVisits();
+  });
 
   loadOrders();
   setInterval(loadOrders, 20000);
