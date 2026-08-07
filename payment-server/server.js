@@ -545,6 +545,72 @@ app.get("/api/admin/visits", requireAdmin, (req, res) => {
 });
 
 // ---------------------------------------------------------------
+// 관리자 전용: 음성인식(OpenAI) · 해석AI(Anthropic) 키 상태 진단
+//  "정밀 인식이 안 된다"고 할 때 원인을 바로 알려준다.
+// ---------------------------------------------------------------
+app.get("/api/admin/voice-test", requireAdmin, async (req, res) => {
+  const out = { openai: {}, anthropic: {} };
+
+  // 1) OpenAI (Whisper)
+  const okey = (process.env.OPENAI_API_KEY || "").trim();
+  if (!okey) {
+    out.openai = { ok: false, status: "없음",
+      detail: "Railway Variables에 OPENAI_API_KEY가 없습니다. 이름 철자를 확인해 주세요." };
+  } else if (!okey.startsWith("sk-")) {
+    out.openai = { ok: false, status: "형식오류",
+      detail: "키가 'sk-'로 시작하지 않습니다. 값을 다시 복사해 넣어 주세요." };
+  } else {
+    try {
+      const r = await fetch("https://api.openai.com/v1/models", {
+        headers: { Authorization: `Bearer ${okey}` },
+      });
+      if (r.ok) {
+        out.openai = { ok: true, status: "정상", detail: "키 인증 성공. 음성인식을 사용할 수 있습니다." };
+      } else if (r.status === 401) {
+        out.openai = { ok: false, status: "인증실패(401)",
+          detail: "키가 잘못되었거나 폐기되었습니다. OpenAI에서 새 키를 발급해 교체해 주세요." };
+      } else if (r.status === 429) {
+        out.openai = { ok: false, status: "잔액부족(429)",
+          detail: "OpenAI 계정에 크레딧이 없습니다. platform.openai.com → Billing 에서 결제수단 등록 후 충전(최소 $5)이 필요합니다." };
+      } else {
+        const t = await r.text().catch(() => "");
+        out.openai = { ok: false, status: `오류(${r.status})`, detail: t.slice(0, 160) };
+      }
+    } catch (e) {
+      out.openai = { ok: false, status: "연결실패", detail: e.message };
+    }
+  }
+
+  // 2) Anthropic (결과지 해석 + 음성 필드추출)
+  const akey = (process.env.ANTHROPIC_API_KEY || "").trim();
+  if (!akey) {
+    out.anthropic = { ok: false, status: "없음", detail: "ANTHROPIC_API_KEY가 없습니다." };
+  } else {
+    try {
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-api-key": akey, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({
+          model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5",
+          max_tokens: 8,
+          messages: [{ role: "user", content: "ok" }],
+        }),
+      });
+      if (r.ok) out.anthropic = { ok: true, status: "정상", detail: "키 인증 성공. 결과지 해석 AI가 작동합니다." };
+      else {
+        const t = await r.text().catch(() => "");
+        out.anthropic = { ok: false, status: `오류(${r.status})`,
+          detail: r.status === 401 ? "키가 잘못되었습니다." : (r.status === 429 ? "사용량 한도(크레딧)를 확인해 주세요." : t.slice(0, 160)) };
+      }
+    } catch (e) {
+      out.anthropic = { ok: false, status: "연결실패", detail: e.message };
+    }
+  }
+
+  res.json({ success: true, result: out });
+});
+
+// ---------------------------------------------------------------
 // 음성 녹음 → 텍스트 변환 (OpenAI Whisper)
 //  브라우저 내장 음성인식보다 정확도가 훨씬 높아, 장년층 발화·한자 훈음도 잘 잡는다.
 //  .env(OPENAI_API_KEY)가 없으면 실패를 돌려주고, 클라이언트는 기존 방식으로 폴백한다.

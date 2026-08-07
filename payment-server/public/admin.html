@@ -135,6 +135,15 @@
     </div>
   </div>
 
+  <div class="sample-box">
+    <div class="title">🔑 AI 키 상태 점검</div>
+    <div class="desc">음성인식(OpenAI)과 결과지 해석 AI(Anthropic)가 정상 작동하는지 확인합니다. "정밀 인식이 안 된다"고 할 때 눌러보세요.</div>
+    <div class="sample-btns">
+      <button class="sample-btn secondary" id="voiceTestBtn">키 상태 확인하기</button>
+    </div>
+    <div id="voiceTestResult" style="margin-top:12px;"></div>
+  </div>
+
   <div class="filter-tabs" id="filterTabs">
     <button class="filter-tab active" data-filter="all">전체</button>
     <button class="filter-tab" data-filter="PENDING_PAYMENT">결제대기</button>
@@ -441,6 +450,30 @@
     } catch (e) { alert("오류: " + e.message); }
     finally { btn.disabled = false; btn.textContent = t; }
   }
+
+  // ===== AI 키 상태 점검 =====
+  async function voiceTest(btn) {
+    const box = document.getElementById("voiceTestResult");
+    const t = btn.textContent; btn.disabled = true; btn.textContent = "확인 중…";
+    box.innerHTML = `<div style="font-size:12.5px;color:var(--text-sub);">키를 확인하고 있어요…</div>`;
+    try {
+      const res = await fetch("/api/admin/voice-test");
+      const data = await res.json();
+      if (!data.success) { box.innerHTML = `<div style="color:#B03A3A;">${data.message || "점검 실패"}</div>`; return; }
+      const r = data.result;
+      const row = (label, o) => `
+        <div style="background:${o.ok ? "#E8F5E9" : "#FDECEA"};border:1px solid ${o.ok ? "#A5D6A7" : "#F5C6C2"};border-radius:8px;padding:11px 13px;margin-bottom:8px;">
+          <div style="font-size:13px;font-weight:800;color:${o.ok ? "#2E7D32" : "#B03A3A"};">
+            ${o.ok ? "✅" : "❌"} ${label} — ${o.status}
+          </div>
+          <div style="font-size:12.5px;color:var(--ink);margin-top:4px;line-height:1.6;">${o.detail || ""}</div>
+        </div>`;
+      box.innerHTML = row("음성인식 (OpenAI Whisper)", r.openai) + row("결과지 해석 AI (Anthropic)", r.anthropic);
+    } catch (e) {
+      box.innerHTML = `<div style="color:#B03A3A;">오류: ${e.message}</div>`;
+    } finally { btn.disabled = false; btn.textContent = t; }
+  }
+  document.getElementById("voiceTestBtn").addEventListener("click", (e) => voiceTest(e.target));
 
   document.getElementById("sampleSingleBtn").addEventListener("click", (e) => generateSample("single", e.target));
   document.getElementById("sampleCoupleBtn").addEventListener("click", (e) => generateSample("couple", e.target));

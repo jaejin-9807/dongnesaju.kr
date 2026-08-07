@@ -1061,10 +1061,11 @@
           });
           const data = await res.json();
           if (data.success && data.transcript) { await applyTranscript(data.transcript); return; }
-          // Whisper 미설정/실패 → 브라우저 인식으로 폴백 안내
+          // Whisper 미설정/실패 → 브라우저 인식으로 폴백 (운영자 확인용으로 사유를 콘솔에 남김)
+          console.warn("[음성인식] Whisper 사용 불가:", data.message, data.code || "");
           if (SR) {
             processed = false;
-            statusEl.textContent = "정밀 인식을 쓸 수 없어 기본 인식으로 전환했어요. 버튼을 눌러 다시 말씀해 주세요.";
+            statusEl.textContent = "기본 음성인식으로 전환했어요. 버튼을 눌러 다시 말씀해 주세요.";
             mode = "browser";
           } else {
             statusEl.textContent = "음성을 글자로 바꾸지 못했어요. 직접 입력해 주세요.";
