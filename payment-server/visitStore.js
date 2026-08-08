@@ -49,17 +49,42 @@ function dayKey(d = new Date()) {
   return kst.toISOString().slice(0, 10);
 }
 
-/** 방문 1건 기록. visitorId 는 쿠키로 유지되는 임의 ID. */
-function record(visitorId) {
+// 방문자별 마지막 활동 시각(세션 계산용). 30분 넘게 끊기면 '다시 방문'으로 센다.
+const SESSION_GAP_MS = 30 * 60 * 1000;
+const _lastSeen = new Map();
+
+/**
+ * 방문 1건 기록. visitorId 는 쿠키로 유지되는 임의 ID.
+ * @param {string} visitorId
+ * @param {boolean} newSession true 면 무조건 '새 방문'으로 센다(로그인·로그아웃 직후 등)
+ */
+function record(visitorId, newSession) {
   const data = db();
   const k = dayKey();
-  if (!data[k]) data[k] = { pv: 0, uv: [] };
+  if (!data[k]) data[k] = { pv: 0, uv: [], visits: 0 };
+  if (data[k].visits == null) data[k].visits = 0;   // 과거 기록 호환
+
   data[k].pv += 1;
   if (visitorId && !data[k].uv.includes(visitorId)) data[k].uv.push(visitorId);
+
+  // ---- 방문 횟수(세션) ----
+  // 처음 오거나, 30분 이상 뒤에 다시 오거나, 로그인/로그아웃으로 상태가 바뀌면 '다시 방문'
+  const now = Date.now();
+  const prev = _lastSeen.get(visitorId);
+  if (!prev || newSession || now - prev > SESSION_GAP_MS) {
+    data[k].visits += 1;
+  }
+  if (visitorId) _lastSeen.set(visitorId, now);
+
   // 오래된 기록 정리(1년 초과)
   const keys = Object.keys(data).sort();
   if (keys.length > 400) delete data[keys[0]];
   saveSoon();
+}
+
+/** 로그인/로그아웃 시 호출 — 다음 방문을 '새 방문'으로 잡기 위해 기록을 지운다. */
+function resetSession(visitorId) {
+  if (visitorId) _lastSeen.delete(visitorId);
 }
 
 function _range(days) {
@@ -68,8 +93,11 @@ function _range(days) {
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date(Date.now() - i * 86400000);
     const k = dayKey(d);
-    const rec = data[k] || { pv: 0, uv: [] };
-    out.push({ date: k, pv: rec.pv || 0, uv: (rec.uv || []).length, _uv: rec.uv || [] });
+    const rec = data[k] || { pv: 0, uv: [], visits: 0 };
+    out.push({
+      date: k, pv: rec.pv || 0, uv: (rec.uv || []).length,
+      visits: rec.visits || 0, _uv: rec.uv || [],
+    });
   }
   return out;
 }
@@ -78,9 +106,12 @@ function _range(days) {
 function summary(days) {
   const rows = _range(days);
   const uvSet = new Set();
-  let pv = 0;
-  rows.forEach((r) => { pv += r.pv; r._uv.forEach((v) => uvSet.add(v)); });
-  return { days, pv, uv: uvSet.size, rows: rows.map(({ date, pv, uv }) => ({ date, pv, uv })) };
+  let pv = 0, visits = 0;
+  rows.forEach((r) => { pv += r.pv; visits += r.visits; r._uv.forEach((v) => uvSet.add(v)); });
+  return {
+    days, pv, visits, uv: uvSet.size,
+    rows: rows.map(({ date, pv, uv, visits }) => ({ date, pv, uv, visits })),
+  };
 }
 
 /** 관리자 화면용: 일간(오늘)·주간(7일)·월간(30일) */
@@ -89,10 +120,10 @@ function stats() {
   const week = summary(7);
   const month = summary(30);
   return {
-    today: { pv: today.pv, uv: today.uv, rows: today.rows },
-    week: { pv: week.pv, uv: week.uv, rows: week.rows },
-    month: { pv: month.pv, uv: month.uv, rows: month.rows },
+    today: { pv: today.pv, uv: today.uv, visits: today.visits, rows: today.rows },
+    week: { pv: week.pv, uv: week.uv, visits: week.visits, rows: week.rows },
+    month: { pv: month.pv, uv: month.uv, visits: month.visits, rows: month.rows },
   };
 }
 
-module.exports = { record, stats, summary, dayKey };
+module.exports = { record, resetSession, stats, summary, dayKey };

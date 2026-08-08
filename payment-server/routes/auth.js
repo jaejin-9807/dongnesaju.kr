@@ -57,11 +57,15 @@ router.post("/login", (req, res) => {
   }
   const token = session.sign({ userId: user.userId, role: user.role });
   session.setCookie(res, COOKIE_NAME, token);
+  // 로그인하면 '다시 방문'으로 세도록 세션 기록을 초기화
+  try { require("../visitStore").resetSession(req.cookies && req.cookies.vid); } catch (e) {}
   res.json({ success: true, user });
 });
 
 router.post("/logout", (req, res) => {
   session.clearCookie(res, COOKIE_NAME);
+  // 로그아웃 후 다시 들어오면 '새 방문'으로 세도록 초기화
+  try { require("../visitStore").resetSession(req.cookies && req.cookies.vid); } catch (e) {}
   res.json({ success: true });
 });
 

@@ -168,9 +168,10 @@
   <div id="visitsView" style="display:none;">
     <div class="sub">사이트에 다녀간 방문자 수입니다. (한국 시간 기준)</div>
     <div style="background:#FBF4E2;border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin-top:10px;font-size:12.5px;line-height:1.7;color:var(--ink);">
-      <b>📌 두 숫자의 차이</b><br>
-      · <b>방문자</b> — 실제로 다녀간 <b>사람 수</b>입니다. 같은 사람이 하루에 열 번을 와도 <b>1명</b>으로 셉니다. <b>← 이 숫자를 보시면 됩니다</b><br>
-      · <b>페이지 열람</b> — 페이지를 몇 번 열었는지 세는 <b>참고용</b> 숫자입니다. 한 사람이 홈→상품→마이페이지를 보면 3회로 잡힙니다.
+      <b>📌 숫자 읽는 법</b><br>
+      · <b>방문자</b> — 실제로 다녀간 <b>사람 수</b>입니다. 같은 사람이 하루에 열 번을 와도 <b>1명</b>. <b>← 이 숫자를 보시면 됩니다</b><br>
+      · <b>방문 횟수</b> — 같은 사람이라도 <b>나갔다가 다시 오면 다시 1회</b>로 셉니다. (로그아웃 후 재방문, 30분 이상 뒤 재접속)<br>
+      · <b>페이지 열람</b> — 페이지를 몇 번 열었는지 세는 <b>참고용</b> 숫자입니다. 홈→상품→마이페이지를 보면 3회.
     </div>
     <div class="view-tabs" id="visitTabs" style="margin-top:12px;">
       <button class="view-tab active" data-range="today">오늘</button>
@@ -579,11 +580,10 @@
     const s = visitStats[visitRange] || { pv: 0, uv: 0, rows: [] };
     const label = visitRange === "today" ? "오늘" : (visitRange === "week" ? "최근 7일" : "최근 30일");
     const perPerson = s.uv ? (s.pv / s.uv).toFixed(1) : "0";
+    const visits = s.visits || 0;
     document.getElementById("visitCards").innerHTML =
       card(`${label} 방문자`, s.uv, "명", true, "같은 사람이 여러 번 와도 <b>1명</b>으로 계산") +
-      card("오늘 방문자", visitStats.today.uv, "명", false, "오늘 다녀간 실제 사람 수") +
-      card("최근 7일 방문자", visitStats.week.uv, "명", false, "7일간 다녀간 사람 수(중복 제외)") +
-      card("최근 30일 방문자", visitStats.month.uv, "명", false, "30일간 다녀간 사람 수(중복 제외)") +
+      card(`${label} 방문 횟수`, visits, "회", false, "같은 사람이 나갔다 다시 오면 <b>다시 1회</b>") +
       card(`${label} 페이지 열람`, s.pv, "회", false, `한 사람이 평균 <b>${perPerson}쪽</b>씩 열어봤어요`);
 
     // 간단 막대그래프(일자별 방문자)
@@ -609,10 +609,12 @@
         <table style="width:100%;border-collapse:collapse;font-size:13px;">
           <tr><th style="text-align:left;padding:6px;border-bottom:1px solid var(--line);">날짜</th>
               <th style="text-align:right;padding:6px;border-bottom:1px solid var(--line);">방문자(명)</th>
-              <th style="text-align:right;padding:6px;border-bottom:1px solid var(--line);">페이지 열람(회)</th></tr>
+              <th style="text-align:right;padding:6px;border-bottom:1px solid var(--line);">방문 횟수</th>
+              <th style="text-align:right;padding:6px;border-bottom:1px solid var(--line);">페이지 열람</th></tr>
           ${rows.slice().reverse().map((r) => `<tr>
             <td style="padding:6px;">${r.date}</td>
             <td style="padding:6px;text-align:right;font-weight:700;">${r.uv}</td>
+            <td style="padding:6px;text-align:right;">${r.visits || 0}</td>
             <td style="padding:6px;text-align:right;color:var(--text-sub);">${r.pv}</td></tr>`).join("")}
         </table>
       </div>`;
