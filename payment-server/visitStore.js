@@ -157,28 +157,57 @@ function stats() {
   };
 }
 
-// ---- IP → 지역명 변환 (무료 ip-api.com 사용, 서버에서만 호출) ----
-// 영문/한글 지역명을 짧은 시·도 라벨로 정리한다.
-const _REGION_KO = {
-  Seoul: "서울", Busan: "부산", Daegu: "대구", Incheon: "인천", Gwangju: "광주",
-  Daejeon: "대전", Ulsan: "울산", Sejong: "세종", Gyeonggi: "경기", "Gyeonggi-do": "경기",
-  Gangwon: "강원", "Gangwon-do": "강원", Chungbuk: "충북", "North Chungcheong": "충북",
-  Chungnam: "충남", "South Chungcheong": "충남", Jeonbuk: "전북", "North Jeolla": "전북",
-  Jeonnam: "전남", "South Jeolla": "전남", Gyeongbuk: "경북", "North Gyeongsang": "경북",
-  Gyeongnam: "경남", "South Gyeongsang": "경남", Jeju: "제주",
-  // 한글 정식 명칭 → 약칭
-  "충청남도": "충남", "충청북도": "충북", "전라남도": "전남", "전라북도": "전북",
-  "전북특별자치도": "전북", "경상남도": "경남", "경상북도": "경북",
-  "강원특별자치도": "강원", "제주특별자치도": "제주",
+// ---- IP → 국문 지역명 변환 (무료 ip-api.com 사용, 서버에서만 호출) ----
+// ip-api 는 한국어를 지원하지 않아 영문(로마자)로 오므로, 시·도/시·군을 국문으로 직접 매핑한다.
+const PROVINCE_KO = {
+  "Seoul": "서울특별시", "Busan": "부산광역시", "Daegu": "대구광역시", "Incheon": "인천광역시",
+  "Gwangju": "광주광역시", "Daejeon": "대전광역시", "Ulsan": "울산광역시",
+  "Sejong": "세종특별자치시", "Sejong-si": "세종특별자치시",
+  "Gyeonggi-do": "경기도", "Gyeonggi": "경기도",
+  "Gangwon-do": "강원특별자치도", "Gangwon": "강원특별자치도", "Gangwon State": "강원특별자치도",
+  "Chungcheongbuk-do": "충청북도", "North Chungcheong": "충청북도", "Chungbuk": "충청북도",
+  "Chungcheongnam-do": "충청남도", "South Chungcheong": "충청남도", "Chungnam": "충청남도",
+  "Jeollabuk-do": "전북특별자치도", "North Jeolla": "전북특별자치도", "Jeonbuk": "전북특별자치도", "Jeonbuk State": "전북특별자치도",
+  "Jeollanam-do": "전라남도", "South Jeolla": "전라남도", "Jeonnam": "전라남도",
+  "Gyeongsangbuk-do": "경상북도", "North Gyeongsang": "경상북도", "Gyeongbuk": "경상북도",
+  "Gyeongsangnam-do": "경상남도", "South Gyeongsang": "경상남도", "Gyeongnam": "경상남도",
+  "Jeju-do": "제주특별자치도", "Jeju": "제주특별자치도",
 };
-function _shortenKo(regionName) {
-  if (!regionName) return null;
-  let r = String(regionName).trim();
-  if (_REGION_KO[r]) return _REGION_KO[r];
-  // 한글 접미사 제거: 서울특별시→서울, 경기도→경기, 제주특별자치도→제주
-  r = r.replace(/(특별자치시|특별자치도|특별시|광역시|자치시|자치도)$/, "")
-       .replace(/도$/, "");
-  return r || regionName;
+const CITY_KO = {
+  // 경기
+  "Suwon": "수원시", "Suwon-si": "수원시", "Seongnam": "성남시", "Seongnam-si": "성남시",
+  "Yongin": "용인시", "Goyang": "고양시", "Bucheon": "부천시", "Ansan": "안산시", "Anyang": "안양시",
+  "Namyangju": "남양주시", "Hwaseong": "화성시", "Hwaseong-si": "화성시", "Pyeongtaek": "평택시",
+  "Uijeongbu": "의정부시", "Siheung": "시흥시", "Paju": "파주시", "Gimpo": "김포시",
+  "Gwangmyeong": "광명시", "Gunpo": "군포시", "Icheon": "이천시", "Osan": "오산시", "Hanam": "하남시",
+  "Yangju": "양주시", "Guri": "구리시", "Anseong": "안성시", "Pocheon": "포천시", "Uiwang": "의왕시",
+  "Yeoju": "여주시", "Dongducheon": "동두천시", "Gwacheon": "과천시",
+  // 충남·충북·대전권
+  "Cheonan": "천안시", "Cheonan-si": "천안시", "Asan": "아산시", "Seosan": "서산시", "Dangjin": "당진시",
+  "Nonsan": "논산시", "Gongju": "공주시", "Boryeong": "보령시", "Gyeryong": "계룡시",
+  "Cheongju": "청주시", "Cheongju-si": "청주시", "Chungju": "충주시", "Jecheon": "제천시",
+  // 강원
+  "Chuncheon": "춘천시", "Wonju": "원주시", "Gangneung": "강릉시", "Sokcho": "속초시",
+  "Donghae": "동해시", "Samcheok": "삼척시", "Taebaek": "태백시",
+  // 전북·전남
+  "Jeonju": "전주시", "Iksan": "익산시", "Gunsan": "군산시", "Jeongeup": "정읍시", "Namwon": "남원시", "Gimje": "김제시",
+  "Mokpo": "목포시", "Yeosu": "여수시", "Suncheon": "순천시", "Naju": "나주시", "Gwangyang": "광양시",
+  // 경북·경남
+  "Pohang": "포항시", "Gumi": "구미시", "Gyeongsan": "경산시", "Andong": "안동시", "Gyeongju": "경주시",
+  "Gimcheon": "김천시", "Yeongju": "영주시", "Yeongcheon": "영천시", "Sangju": "상주시", "Mungyeong": "문경시",
+  "Changwon": "창원시", "Gimhae": "김해시", "Jinju": "진주시", "Yangsan": "양산시", "Geoje": "거제시",
+  "Tongyeong": "통영시", "Sacheon": "사천시", "Miryang": "밀양시",
+  // 제주
+  "Jeju City": "제주시", "Seogwipo": "서귀포시",
+};
+function _regionLabel(regionName, city) {
+  const prov = PROVINCE_KO[String(regionName || "").trim()] ||
+    (regionName ? String(regionName).replace(/-(do|si)$/i, "") : null);
+  if (!prov) return null;
+  // 도/특별자치도 단위면 시·군까지 함께 표시(광역시·특별시·세종은 시 단위라 생략)
+  const cityKo = CITY_KO[String(city || "").trim()];
+  if (/도$/.test(prov) && cityKo) return `${prov} ${cityKo}`;
+  return prov;
 }
 
 const _pending = new Set();  // 중복 조회 방지
@@ -198,14 +227,14 @@ async function lookupAndRecord(visitorId, ip) {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 4000);
     const r = await fetch(
-      `http://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,country,countryCode,regionName&lang=ko`,
+      `http://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,country,countryCode,regionName,city`,
       { signal: ctrl.signal }
     );
     clearTimeout(t);
     const d = await r.json();
     if (d && d.status === "success") {
       const region = (d.countryCode === "KR")
-        ? (_shortenKo(d.regionName) || "국내")
+        ? (_regionLabel(d.regionName, d.city) || "국내")
         : `해외(${d.country || d.countryCode || "기타"})`;
       recordRegion(visitorId, region);
     } else {
