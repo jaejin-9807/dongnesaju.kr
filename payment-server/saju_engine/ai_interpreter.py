@@ -199,7 +199,48 @@ def _build_group_prompt(data: dict, group: dict) -> str:
         extra_lines = _gunghap_fact_lines(data)
 
     keys_desc = "\n".join(f"- {key}: {label}" for key, label in group["keys"])
+
+    # ---- 개인화 신호: 분 단위 출생 시각 · 이름(발음오행/한자 뜻·획수) ----
+    # 같은 명식이라도 이 신호가 달라 해석의 결이 겹치지 않게 한다.
+    pz_lines = []
+    try:
+        from personalize import build_context
+        _meta = data.get("meta", {}) or {}
+        _pz = build_context(data, _meta)
+        tp = _pz.get("time_phase") or {}
+        if tp:
+            pz_lines.append(
+                f"- 출생 시각의 결: {tp['siji']}시({tp['animal']})의 '{tp['phase']}'"
+                f"(해당 시가 시작된 뒤 {tp['passed']}분 경과). "
+                f"앞 시각 {tp['prev']}시({tp['prev_oheng']}), 뒤 시각 {tp['next']}시({tp['next_oheng']})의 영향 참고."
+            )
+        prof = _pz.get("name_profile") or {}
+        if prof.get("sound_ohengs"):
+            pairs = ", ".join(f"{c}({o})" for c, o in prof.get("sound", []) if o)
+            pz_lines.append(f"- 이름 발음오행: {pairs}")
+        if prof.get("chars"):
+            cs = ", ".join(
+                f"{c['char']}({c.get('meaning') or '뜻 미상'}"
+                + (f", {c['strokes']}획" if c.get("strokes") else "")
+                + (f", 자원오행 {c['oheng']}" if c.get("oheng") else "") + ")"
+                for c in prof["chars"])
+            if cs:
+                pz_lines.append(f"- 이름 한자: {cs}")
+        if prof.get("total_strokes"):
+            pz_lines.append(f"- 이름 총획: {prof['total_strokes']}획 (수리오행 {prof['stroke_oheng']})")
+        if _pz.get("V"):
+            mt = _pz["V"].metaphor()
+            pz_lines.append(
+                f"- 이 리포트에서 사용할 비유 소재: '{mt['subject']}'"
+                f"(성장={mt['grow']}, 절정={mt['peak']}, 휴식={mt['rest']}). "
+                "이 소재를 자연스럽게 활용해 다른 사람의 글과 표현이 겹치지 않게 하세요."
+            )
+    except Exception:
+        pass
+
     all_lines = fact_lines + ([""] + extra_lines if extra_lines else [])
+    if pz_lines:
+        all_lines = all_lines + ["", "[이 사람만의 개인화 정보]"] + pz_lines
 
     prompt = f"""당신은 명리학(사주팔자)에 정통한 전문 상담가입니다.
 아래는 한 의뢰인의 사주를 자평진전·삼명통회·명리정종·적천수 등 고전 이론에 기반해
@@ -224,7 +265,15 @@ def _build_group_prompt(data: dict, group: dict) -> str:
 3. 각 항목은 300~450자 정도로, 구체적인 상황·시기·행동 제안을 포함해 실질적으로
    도움이 되게 쓰세요.
 4. 정중한 존댓말("~해요", "~합니다", "~하면 좋아요")로 편안하게 쓰세요.
-5. 아래 항목 전부를 빠짐없이 작성하세요:
+5. **[이 사람만의 개인화 정보]가 주어졌다면 반드시 해석에 녹여 쓰세요.**
+   - 같은 날 같은 시에 태어난 사람이라도 '초입·중간·끝자락'에 따라 기운이 다릅니다.
+     이 차이를 해석의 방향에 실제로 반영하세요(예: 초입=시작하는 힘·예민한 감각,
+     중간=중심이 단단함·한 우물, 끝자락=변화 적응·전환에 강함).
+   - 이름의 발음오행·한자 뜻·획수가 사주의 부족한 기운을 보완하는지, 이미 강한 기운을
+     더 키우는지 짚어 주세요.
+   - 지정된 비유 소재를 활용하고, 문장 구조와 도입부를 매번 다르게 구성해
+     **다른 의뢰인의 결과지와 표현이 겹치지 않게** 쓰세요. 정형화된 상투구는 피하세요.
+6. 아래 항목 전부를 빠짐없이 작성하세요:
 {keys_desc}
 
 [출력 형식]

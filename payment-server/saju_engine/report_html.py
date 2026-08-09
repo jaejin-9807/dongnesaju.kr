@@ -447,6 +447,25 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
         time_str = f"{int(b.get('hour', 0)):02d}시 {int(b.get('minute', 0)):02d}분"
     birth_line = _birth_line_str(b, data, calendar_type, time_str)
 
+    # ---- 개인화 컨텍스트 (분 단위 시각 · 이름 한자 · 문장 변형 시드) ----
+    try:
+        from personalize import build_context
+        PZ = build_context(data, meta)
+    except Exception:
+        PZ = {"name": customer_name, "time_text": "", "name_text": "",
+              "time_phase": None, "name_profile": None, "V": None}
+    _V = PZ.get("V")
+
+    def _pz(topic):
+        """섹션마다 '이 사람에게만 해당하는' 마무리 문장을 붙여
+        같은 명식이라도 결과지가 겹치지 않게 한다."""
+        try:
+            from personalize import closing_line
+            line = closing_line(_V, topic, PZ)
+            return _p(line) if line else ""
+        except Exception:
+            return ""
+
     reg = ChapterRegistry()
     # ---- 상품별 수록 모듈 선택 (None = 전체) ----
     MODULES = _product_modules(meta.get("product"))
@@ -627,6 +646,29 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
             f"<p class='body-text'>이 오각형은 다섯 기운이 서로 낳아주며 이어지는 순서(목→화→토→금→수→목)를 원으로 그린 것입니다. 화살표는 '상생', 즉 앞의 기운이 뒤의 기운을 도와주는 흐름이에요. 각 원 안의 숫자는 내 사주가 가진 그 기운의 개수입니다. 숫자가 많은 자리는 힘이 넘치고, 0인 자리는 흐름이 끊기기 쉬운 곳입니다. 부족한 기운을 채우면 이 순환이 매끄럽게 돌아, 운의 흐름도 함께 좋아집니다.</p>"
             "</div>")
     body_parts.append(_p(txt("p1_구성", txt("사주원국해설", txt("ohengBasic")))))
+
+    # ---- 개인화 ① 태어난 시각의 분(分) 단위 결 ----
+    #  같은 시(時)에 태어나도 초입·중간·끝자락에 따라 기운이 달라진다.
+    if PZ.get("time_text"):
+        _sub("태어난 시각이 만든 결")
+        body_parts.append(_p(PZ["time_text"]))
+        _tp = PZ.get("time_phase") or {}
+        if _tp and _V:
+            _mt = _V.metaphor()
+            body_parts.append(_p(
+                f"이 결을 {_mt['subject']}에 빗대면, {customer_name} 님은 "
+                + ("이제 막 " + _mt["grow"] + " 단계의 기세를 타고났습니다. 초반의 추진력이 강점이니, 시작하는 일에서 힘이 붙습니다."
+                   if _tp.get("phase") == "초입" else
+                   _mt["peak"] + " 힘을 온전히 지니고 태어났습니다. 한 가지를 깊게 파고들 때 진가가 드러납니다."
+                   if _tp.get("phase") == "중간" else
+                   "다음 계절을 준비하며 " + _mt["rest"] + " 지혜를 함께 지녔습니다. 상황이 바뀔 때 오히려 길이 열립니다.")))
+
+    # ---- 개인화 ② 이름(발음오행·한자 뜻·획수)이 사주에 미치는 작용 ----
+    #  이 대목은 이름 한자 자체가 설명 대상이므로, plain() 의 한자 제거를 적용하지 않는다.
+    if PZ.get("name_text"):
+        _sub("이름이 사주에 더해 주는 기운")
+        body_parts.append(f"<p class='body-text'>{esc(_simplify(PZ['name_text']))}</p>")
+
     # ---- 강한/부족한 기운(오행 강약)은 기본요약에도 포함 ----
     _sub("나에게 부족하거나 강한 기운")
     body_parts.append(_grid2("가장 강한 기운", most_oheng or "-", "부족한 기운", ", ".join(missing) if missing else "없음"))
@@ -645,6 +687,8 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
         body_parts.append(f"<div class='callout'><div class='callout-label'>{esc(plain(gyeokguk.get('name','')))}</div>"
                           f"<div>{esc(plain(gyeokguk.get('description','')))}</div></div>")
         body_parts.append(_p(txt("p1_강점보완", txt("격국해설", txt("타고난성향")))))
+
+    body_parts.append(_pz("성격"))
 
     # ===================== PART 2 =====================
     chapter("P2", "인생의 흐름과 전환점",
@@ -693,6 +737,8 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
                           "<div>인생의 큰 산은 이미 여러 번 넘어오셨습니다. 지금부터는 새로 크게 벌이기보다, "
                           "그동안 쌓은 것을 건강하게 지키고 가족·이웃과 나누며 마음의 여유를 누리는 흐름이 잘 맞습니다.</div></div>")
     body_parts.append(_p(txt("p2_황금기", txt("평생운세총평"))))
+
+    body_parts.append(_pz("흐름"))
 
     # ===================== PART 3 =====================
     if is_senior:
@@ -743,6 +789,8 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
         body_parts.append(_p(txt("p3_유지",
             "상대가 힘을 얻는 부분을 이해하고 배려하는 대화를 나누면 관계가 오래 갑니다. 고마움은 자주, 구체적으로 표현하세요.")))
 
+    body_parts.append(_pz("관계"))
+
     # ===================== PART 4 =====================
     chapter("P4", "재물운과 경제 흐름",
             "돈이 들어오는 때와 지켜야 할 때를 살펴봅니다.")
@@ -756,8 +804,19 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
     _sub("투자 · 계약 · 지출에 주의할 시기")
     body_parts.append(_p(f"{report_year}년에는 {_ca}에 큰 투자·계약·보증을 특히 신중하게 살피세요. 서두르기보다 한 박자 늦추는 편이 안전합니다."))
     _sub("재물운을 안정적으로 활용하는 방법")
+    _mt4 = _V.metaphor() if _V else {"subject": "밭", "grow": "땅을 고르고", "peak": "거두는", "rest": "묵히는"}
     body_parts.append(_p(txt("p4_활용",
-        "수입의 일정 비율을 먼저 떼어 저축·투자로 자동 배분하고, 큰 결정은 기회 달에 몰아서 처리하면 재물운을 안정적으로 살릴 수 있습니다.")))
+        (_V.pick([
+            f"재물은 {_mt4['subject']}과 같아서, {_mt4['grow']} 시기와 {_mt4['peak']} 시기를 구분할 줄 알아야 합니다. "
+            f"수입의 일정 비율을 먼저 떼어 두고, 큰 결정은 기운이 오르는 {_op}에 몰아서 처리하세요.",
+            f"들어오는 돈을 늘리는 것보다 새어 나가는 자리를 막는 편이 {customer_name} 님께는 더 큰 이득입니다. "
+            f"고정 지출을 한 번 정리하고, {_ca}에는 새로운 지출을 만들지 않는 것만으로 흐름이 달라집니다.",
+            f"{customer_name} 님의 재물은 한 번에 크게 불리기보다 여러 갈래로 나눠 쌓을 때 안정됩니다. "
+            f"저축·투자 비율을 미리 정해 자동으로 배분하고, 중요한 계약은 {_op}에 맞추세요.",
+        ]) if _V else
+         "수입의 일정 비율을 먼저 떼어 저축·투자로 자동 배분하고, 큰 결정은 기회 달에 몰아서 처리하면 재물운을 안정적으로 살릴 수 있습니다."))))
+
+    body_parts.append(_pz("재물"))
 
     # ===================== PART 5 (나이대별 맞춤) =====================
     if _sk == "20":
@@ -822,6 +881,8 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
         _sub("지금 시기의 가장 큰 복")
         body_parts.append(_p("건강과 마음의 평안, 그리고 가족·이웃과 나누는 정이 지금 시기의 가장 큰 복입니다. 그동안 잘 걸어오신 삶 자체가 충분히 훌륭하니, 이제는 편안히 누리셔도 됩니다."))
 
+    body_parts.append(_pz("직업"))
+
     # ===================== PART 6 =====================
     chapter("P6", "건강과 생활관리",
             "타고난 체질과 건강을 챙길 시기를 살펴봅니다.")
@@ -841,6 +902,8 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
     body_parts.append("<div class='callout'><div class='callout-label'>참고</div>"
                       "<div class='disclaimer'>건강 관련 내용은 명리학적 참고사항이며, 의료 진단을 대신하지 않습니다.</div></div>")
 
+    body_parts.append(_pz("건강"))
+
     # ===================== PART 7 =====================
     chapter("P7", "인간관계와 귀인운",
             "나를 돕는 사람과 관계의 결을 살펴봅니다.")
@@ -855,7 +918,15 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
         "잘해 주려다 선을 넘거나, 반대로 마음을 닫아 오해가 쌓이는 일이 반복될 수 있습니다. 적당한 거리와 솔직함의 균형이 중요합니다."))))
     _sub("주의해야 할 관계 유형과 대처 방법")
     body_parts.append(_p(txt("p7_주의",
-        "에너지를 크게 빼앗는 관계, 돈이 얽힌 관계는 처음에 기준을 분명히 하세요. 어렵더라도 초반에 선을 정하면 뒤탈이 적습니다.")))
+        (_V.pick([
+            "기운을 크게 빼앗는 관계와 돈이 얽힌 관계는 처음에 기준을 분명히 하세요. 어렵더라도 초반에 선을 정해 두면 뒤탈이 적습니다.",
+            "부탁을 거절하지 못해 떠안는 자리가 반복되기 쉽습니다. '지금은 어렵다'는 한마디를 연습해 두면 관계가 오히려 오래갑니다.",
+            f"{customer_name} 님께 유독 기대려는 사람이 몰릴 수 있습니다. 도움은 한 번에 몰아주기보다 감당 가능한 선에서 나눠 주는 편이 서로에게 좋습니다.",
+            "말이 옮겨지며 오해가 생기는 자리를 조심하세요. 중요한 이야기는 사람을 건너뛰지 말고 당사자와 직접 매듭짓는 것이 안전합니다.",
+        ]) if _V else
+         "에너지를 크게 빼앗는 관계, 돈이 얽힌 관계는 처음에 기준을 분명히 하세요. 어렵더라도 초반에 선을 정하면 뒤탈이 적습니다."))))
+
+    body_parts.append(_pz("관계"))
 
     # ===================== PART 8 =====================
     chapter("P8", "운의 흐름을 활용하는 방법",

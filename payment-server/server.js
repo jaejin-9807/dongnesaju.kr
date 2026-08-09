@@ -127,6 +127,8 @@ function buildPdfMeta(order) {
     (order.sajuInfo && order.sajuInfo.calendarType) || "양력";
   return {
     customerName: order.customerName || "의뢰인",
+    // 이름 한자 — 결과지 개인화(자원오행·획수 분석)에 사용
+    customerNameHanja: order.customerNameHanja || (order.person1 && order.person1.nameHanja) || "",
     reportType: isEvent ? "이벤트 무료 사주" : (isCouple ? "궁합 분석" : (order.orderName || "종합 사주 분석")),
     product: order.orderName || "",   // 상품별 결과지 섹션 선택에 사용
     relationship: order.relationship || "",   // 궁합: 연인/신혼/부부 맞춤 풀이
