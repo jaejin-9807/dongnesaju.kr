@@ -55,6 +55,12 @@ app.use((req, res, next) => {
         res.cookie("vid", vid, { maxAge: 365 * 24 * 3600 * 1000, sameSite: "lax" });
       }
       visitStore.record(vid);
+      // 지역(접속 위치)은 방문자당 한 번만, 백그라운드로 조회(페이지 응답을 막지 않음)
+      if (!visitStore.knownRegion(vid)) {
+        const fwd = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+        const ip = fwd || (req.socket && req.socket.remoteAddress) || "";
+        visitStore.lookupAndRecord(vid, ip);
+      }
     }
   } catch (e) { /* 집계 실패가 서비스에 영향 주지 않도록 무시 */ }
   next();

@@ -87,6 +87,29 @@ function resetSession(visitorId) {
   if (visitorId) _lastSeen.delete(visitorId);
 }
 
+// ---- 지역(접속 위치) 집계 ----
+const _visitorRegion = new Map();   // vid -> 지역명(한 번 확인하면 재사용)
+const _regionDone = new Set();      // "날짜|vid" — 하루 한 번만 지역 카운트
+
+/** 방문자의 지역을 이미 알고 있는지 */
+function knownRegion(visitorId) { return _visitorRegion.get(visitorId); }
+
+/** 지역 1건 기록(같은 방문자는 하루 1회만 카운트) */
+function recordRegion(visitorId, region) {
+  if (!region) return;
+  _visitorRegion.set(visitorId, region);
+  const k = dayKey();
+  const doneKey = k + "|" + visitorId;
+  if (_regionDone.has(doneKey)) return;
+  _regionDone.add(doneKey);
+  const data = db();
+  if (!data[k]) data[k] = { pv: 0, uv: [], visits: 0 };
+  if (!data[k].regions) data[k].regions = {};
+  data[k].regions[region] = (data[k].regions[region] || 0) + 1;
+  if (_regionDone.size > 20000) _regionDone.clear();  // 메모리 방어
+  saveSoon();
+}
+
 function _range(days) {
   const data = db();
   const out = [];
@@ -96,7 +119,7 @@ function _range(days) {
     const rec = data[k] || { pv: 0, uv: [], visits: 0 };
     out.push({
       date: k, pv: rec.pv || 0, uv: (rec.uv || []).length,
-      visits: rec.visits || 0, _uv: rec.uv || [],
+      visits: rec.visits || 0, _uv: rec.uv || [], regions: rec.regions || {},
     });
   }
   return out;
@@ -107,9 +130,17 @@ function summary(days) {
   const rows = _range(days);
   const uvSet = new Set();
   let pv = 0, visits = 0;
-  rows.forEach((r) => { pv += r.pv; visits += r.visits; r._uv.forEach((v) => uvSet.add(v)); });
+  const regions = {};
+  rows.forEach((r) => {
+    pv += r.pv; visits += r.visits; r._uv.forEach((v) => uvSet.add(v));
+    for (const [name, n] of Object.entries(r.regions)) regions[name] = (regions[name] || 0) + n;
+  });
+  // 많은 순으로 정렬한 배열
+  const regionList = Object.entries(regions)
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count);
   return {
-    days, pv, visits, uv: uvSet.size,
+    days, pv, visits, uv: uvSet.size, regions: regionList,
     rows: rows.map(({ date, pv, uv, visits }) => ({ date, pv, uv, visits })),
   };
 }
@@ -120,10 +151,71 @@ function stats() {
   const week = summary(7);
   const month = summary(30);
   return {
-    today: { pv: today.pv, uv: today.uv, visits: today.visits, rows: today.rows },
-    week: { pv: week.pv, uv: week.uv, visits: week.visits, rows: week.rows },
-    month: { pv: month.pv, uv: month.uv, visits: month.visits, rows: month.rows },
+    today: { pv: today.pv, uv: today.uv, visits: today.visits, regions: today.regions, rows: today.rows },
+    week: { pv: week.pv, uv: week.uv, visits: week.visits, regions: week.regions, rows: week.rows },
+    month: { pv: month.pv, uv: month.uv, visits: month.visits, regions: month.regions, rows: month.rows },
   };
 }
 
-module.exports = { record, resetSession, stats, summary, dayKey };
+// ---- IP → 지역명 변환 (무료 ip-api.com 사용, 서버에서만 호출) ----
+// 영문/한글 지역명을 짧은 시·도 라벨로 정리한다.
+const _REGION_KO = {
+  Seoul: "서울", Busan: "부산", Daegu: "대구", Incheon: "인천", Gwangju: "광주",
+  Daejeon: "대전", Ulsan: "울산", Sejong: "세종", Gyeonggi: "경기", "Gyeonggi-do": "경기",
+  Gangwon: "강원", "Gangwon-do": "강원", Chungbuk: "충북", "North Chungcheong": "충북",
+  Chungnam: "충남", "South Chungcheong": "충남", Jeonbuk: "전북", "North Jeolla": "전북",
+  Jeonnam: "전남", "South Jeolla": "전남", Gyeongbuk: "경북", "North Gyeongsang": "경북",
+  Gyeongnam: "경남", "South Gyeongsang": "경남", Jeju: "제주",
+  // 한글 정식 명칭 → 약칭
+  "충청남도": "충남", "충청북도": "충북", "전라남도": "전남", "전라북도": "전북",
+  "전북특별자치도": "전북", "경상남도": "경남", "경상북도": "경북",
+  "강원특별자치도": "강원", "제주특별자치도": "제주",
+};
+function _shortenKo(regionName) {
+  if (!regionName) return null;
+  let r = String(regionName).trim();
+  if (_REGION_KO[r]) return _REGION_KO[r];
+  // 한글 접미사 제거: 서울특별시→서울, 경기도→경기, 제주특별자치도→제주
+  r = r.replace(/(특별자치시|특별자치도|특별시|광역시|자치시|자치도)$/, "")
+       .replace(/도$/, "");
+  return r || regionName;
+}
+
+const _pending = new Set();  // 중복 조회 방지
+function isPrivateIp(ip) {
+  if (!ip) return true;
+  ip = ip.replace(/^::ffff:/, "");
+  return ip === "127.0.0.1" || ip === "::1" || /^10\./.test(ip) ||
+    /^192\.168\./.test(ip) || /^172\.(1[6-9]|2\d|3[01])\./.test(ip);
+}
+
+/** IP를 지역명으로 조회해 recordRegion 까지 처리(백그라운드). 페이지 응답은 막지 않는다. */
+async function lookupAndRecord(visitorId, ip) {
+  if (!visitorId || _visitorRegion.has(visitorId) || _pending.has(visitorId)) return;
+  if (isPrivateIp(ip)) { recordRegion(visitorId, "로컬(테스트)"); return; }
+  _pending.add(visitorId);
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 4000);
+    const r = await fetch(
+      `http://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,country,countryCode,regionName&lang=ko`,
+      { signal: ctrl.signal }
+    );
+    clearTimeout(t);
+    const d = await r.json();
+    if (d && d.status === "success") {
+      const region = (d.countryCode === "KR")
+        ? (_shortenKo(d.regionName) || "국내")
+        : `해외(${d.country || d.countryCode || "기타"})`;
+      recordRegion(visitorId, region);
+    } else {
+      recordRegion(visitorId, "확인 안 됨");
+    }
+  } catch (e) {
+    // 실패해도 서비스에 영향 없음(다음 방문 때 다시 시도)
+  } finally {
+    _pending.delete(visitorId);
+  }
+}
+
+module.exports = { record, resetSession, stats, summary, dayKey, knownRegion, recordRegion, lookupAndRecord };

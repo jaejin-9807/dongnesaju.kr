@@ -180,6 +180,7 @@
     </div>
     <div id="visitCards" style="display:flex;gap:12px;flex-wrap:wrap;margin:14px 0;"></div>
     <div id="visitChart"></div>
+    <div id="visitRegion"></div>
     <div id="visitTable"></div>
   </div>
 </main>
@@ -601,6 +602,27 @@
         <div style="display:flex;gap:3px;margin-top:6px;">
           ${rows.map((r, i) => `<div style="flex:1;text-align:center;font-size:9.5px;color:var(--text-sub);">${(rows.length > 10 && i % 3 !== 0) ? "" : r.date.slice(5)}</div>`).join("")}
         </div>
+      </div>`;
+
+    // 지역(접속 위치)
+    const regions = s.regions || [];
+    const rmax = Math.max(1, ...regions.map((x) => x.count));
+    const rtotal = regions.reduce((a, x) => a + x.count, 0);
+    document.getElementById("visitRegion").innerHTML = !regions.length ?
+      `<div style="background:var(--paper-2);border:1px solid var(--line);border-radius:10px;padding:16px;margin-top:14px;">
+        <div style="font-size:13px;font-weight:800;color:var(--ink);margin-bottom:6px;">📍 지역별 접속</div>
+        <div style="font-size:12.5px;color:var(--text-sub);line-height:1.6;">아직 지역 데이터가 없어요. 방문자가 다녀가면 이곳에 접속 지역이 표시됩니다. (오늘부터 집계 시작)</div>
+      </div>` :
+      `<div style="background:var(--paper-2);border:1px solid var(--line);border-radius:10px;padding:16px;margin-top:14px;">
+        <div style="font-size:13px;font-weight:800;color:var(--ink);margin-bottom:12px;">📍 지역별 접속 <span style="font-weight:600;color:var(--text-sub);font-size:12px;">(방문자 기준)</span></div>
+        ${regions.map((x) => `
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <div style="flex:0 0 68px;font-size:13px;font-weight:700;color:var(--ink);">${x.name}</div>
+            <div style="flex:1;background:#EFEAE0;border-radius:6px;height:20px;overflow:hidden;">
+              <div style="height:100%;width:${Math.round((x.count / rmax) * 100)}%;background:var(--gold);border-radius:6px;"></div>
+            </div>
+            <div style="flex:0 0 74px;text-align:right;font-size:12.5px;color:var(--ink);"><b>${x.count}</b>명 <span style="color:var(--text-sub);">(${Math.round((x.count / rtotal) * 100)}%)</span></div>
+          </div>`).join("")}
       </div>`;
 
     // 표
