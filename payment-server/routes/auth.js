@@ -59,6 +59,8 @@ router.post("/login", (req, res) => {
   session.setCookie(res, COOKIE_NAME, token);
   // 로그인하면 '다시 방문'으로 세도록 세션 기록을 초기화
   try { require("../visitStore").resetSession(req.cookies && req.cookies.vid); } catch (e) {}
+  // 접속 횟수·마지막 접속 시각 기록(관리자 회원관리에서 확인)
+  try { userStore.recordLogin(user.userId); } catch (e) {}
   res.json({ success: true, user });
 });
 

@@ -75,6 +75,11 @@
     border-top-color: var(--gold); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+  /* 카카오톡 문의 버튼 */
+  .kakao-ask { display: flex; align-items: center; justify-content: center; gap: 8px;
+    background: #FEE500; color: #3C1E1E; text-decoration: none; font-weight: 800; font-size: 14.5px;
+    padding: 13px 16px; border-radius: 10px; margin: 4px 0 18px; box-shadow: 0 2px 8px rgba(0,0,0,.07); }
+  .kakao-ask:hover { filter: brightness(.97); }
   /* ── 결과지 작성 진행 표시 ─────────────────────────── */
   .brush { font-size: 30px; display: inline-block; animation: brushMove 2.4s ease-in-out infinite; }
   @keyframes brushMove { 0%,100%{ transform: translateX(-7px) rotate(-8deg);} 50%{ transform: translateX(7px) rotate(8deg);} }
@@ -118,10 +123,31 @@
 <main>
   <h1>마이페이지</h1>
   <div class="sub" id="userInfo">불러오는 중...</div>
+
+  <a class="kakao-ask" id="kakaoAskBtn" href="#" target="_blank" rel="noopener">
+    <svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true"><path fill="#3C1E1E" d="M12 3C6.48 3 2 6.52 2 10.86c0 2.79 1.86 5.24 4.66 6.63-.15.53-.96 3.3-.99 3.52 0 0-.02.16.09.22.1.06.23.01.23.01.29-.04 3.36-2.2 3.9-2.58.68.1 1.38.15 2.11.15 5.52 0 10-3.52 10-7.95C22 6.52 17.52 3 12 3z"/></svg>
+    <span>궁금한 점이 있으신가요? <b>카카오톡 문의</b></span>
+  </a>
+
   <div id="orderList"></div>
 </main>
 
 <script>
+  // ★★★ 카톡문의 링크 — index.html 의 KAKAO_INQUIRY_URL 과 같은 주소를 넣어 주세요. ★★★
+  const KAKAO_INQUIRY_URL = "https://open.kakao.com/o/stYwx5Gi";
+  (function setupKakaoAsk() {
+    const btn = document.getElementById("kakaoAskBtn");
+    if (!btn) return;
+    if (KAKAO_INQUIRY_URL && !KAKAO_INQUIRY_URL.includes("여기에링크")) {
+      btn.href = KAKAO_INQUIRY_URL;
+    } else {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        alert("카톡문의 링크가 아직 설정되지 않았습니다.");
+      });
+    }
+  })();
+
   // 결과지 준비 여부: PDF가 생성됐는가
   function hasResult(o) { return !!o.pdfPath || o.resultStatus === "READY"; }
 

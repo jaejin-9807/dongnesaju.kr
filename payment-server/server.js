@@ -55,6 +55,12 @@ app.use((req, res, next) => {
         res.cookie("vid", vid, { maxAge: 365 * 24 * 3600 * 1000, sameSite: "lax" });
       }
       visitStore.record(vid);
+      // 로그인한 회원이면 '마지막 활동 시각'을 갱신 → 관리자 화면의 접속중 표시에 사용
+      try {
+        const _sess = require("./session");
+        const _p = _sess.verify(req.cookies && req.cookies["saju_session"]);
+        if (_p && _p.userId) userStore.touch(_p.userId);
+      } catch (e) {}
       // 지역(접속 위치)은 방문자당 한 번만, 백그라운드로 조회(페이지 응답을 막지 않음)
       if (!visitStore.knownRegion(vid)) {
         const fwd = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
@@ -408,13 +414,50 @@ app.get("/api/admin/orders", requireAdmin, (req, res) => {
   res.json({ success: true, orders: orderStore.listOrders() });
 });
 
-// 관리자: 회원(가입자) 명단 + 각 회원의 주문 수
+// 관리자: 회원(가입자) 명단 + 주문 이력 + 접속 상태
+//  online 판정: 마지막 활동이 3분 이내면 '접속 중'
+const ONLINE_WINDOW_MS = 3 * 60 * 1000;
 app.get("/api/admin/users", requireAdmin, (req, res) => {
   const orders = orderStore.listOrders();
-  const countByUser = {};
-  for (const o of orders) { if (o.userId) countByUser[o.userId] = (countByUser[o.userId] || 0) + 1; }
-  const users = userStore.listUsers().map((u) => ({ ...u, orderCount: countByUser[u.userId] || 0 }));
+  const byUser = {};
+  for (const o of orders) {
+    if (!o.userId) continue;
+    (byUser[o.userId] = byUser[o.userId] || []).push(o);
+  }
+  const now = Date.now();
+  const users = userStore.listUsers().map((u) => {
+    const list = (byUser[u.userId] || [])
+      .sort((a, b) => (String(a.createdAt) < String(b.createdAt) ? 1 : -1));
+    const seen = u.lastSeenAt ? new Date(u.lastSeenAt).getTime() : 0;
+    return {
+      ...u,
+      orderCount: list.length,
+      loginCount: u.loginCount || 0,
+      online: !!seen && (now - seen) < ONLINE_WINDOW_MS,
+      recentOrders: list.slice(0, 5).map((o) => ({
+        orderId: o.orderId, orderName: o.orderName, amount: o.amount,
+        status: o.status, createdAt: o.createdAt,
+        paymentConfirmed: !!o.paymentConfirmed,
+        hasResult: !!o.pdfPath,
+      })),
+    };
+  });
   res.json({ success: true, users });
+});
+
+// 관리자: 회원 삭제
+app.delete("/api/admin/users/:userId", requireAdmin, (req, res) => {
+  const userId = req.params.userId;
+  const user = userStore.findById(userId);
+  if (!user) return res.status(404).json({ success: false, message: "회원을 찾을 수 없습니다." });
+  const orderCount = orderStore.listOrders().filter((o) => o.userId === userId).length;
+  const ok = userStore.deleteUser(userId);
+  if (!ok) return res.status(500).json({ success: false, message: "삭제에 실패했습니다." });
+  res.json({
+    success: true,
+    message: `${user.name || "회원"}님을 삭제했습니다.` +
+      (orderCount ? ` (주문 ${orderCount}건은 주문 관리에 그대로 남아 있습니다)` : ""),
+  });
 });
 
 app.post("/api/admin/orders/:orderId/generate-pdf", requireAdmin, async (req, res) => {

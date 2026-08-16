@@ -39,6 +39,24 @@
   .sample-btn:disabled { opacity: 0.5; cursor: not-allowed; }
   .sample-btn.secondary { background: var(--paper); color: var(--ink); border: 1px solid var(--line); }
 
+  /* 회원 접속 상태 배지 */
+  .on-badge { font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: 20px; margin-left: 6px; vertical-align: middle; }
+  .on-badge.live { background: #E8F5E9; color: #2E7D32; border: 1px solid #A5D6A7; animation: livePulse 1.4s ease-in-out infinite; }
+  @keyframes livePulse { 0%,100% { opacity: 1; box-shadow: 0 0 0 0 rgba(46,125,50,.45); } 50% { opacity: .72; box-shadow: 0 0 0 5px rgba(46,125,50,0); } }
+  .on-badge.off { background: #EFEFEF; color: #9A9A9A; border: 1px solid #DDD; }
+  /* 회원별 최근 주문 */
+  .mc-orders { margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 9px; }
+  .mc-orders-t { font-size: 11.5px; font-weight: 800; color: var(--text-sub); margin-bottom: 6px; }
+  .mc-order { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 4px 0; border-bottom: 1px solid #F2EDE0; }
+  .mc-order:last-child { border-bottom: none; }
+  .mc-order .o-nm { flex: 1; font-weight: 700; color: var(--ink); }
+  .mc-order .o-amt { color: var(--text-sub); white-space: nowrap; }
+  .mc-order .o-tag { font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 10px; white-space: nowrap; }
+  .mc-order .o-tag.ok { background: #E8F5E9; color: #2E7D32; }
+  .mc-order .o-tag.mid { background: #FFF4E0; color: #A5762A; }
+  .mc-order .o-tag.wait { background: #F3F0E7; color: #8A8272; }
+  .mc-order .o-dt { color: #B4AC98; font-size: 11px; white-space: nowrap; }
+  .mc-none { font-size: 12px; color: var(--text-sub); }
   .view-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
   .view-tab { padding: 9px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--paper-2); font-size: 13px; font-weight: 800; cursor: pointer; color: var(--text-sub); }
   .view-tab.active { background: var(--ink); color: var(--gold-light); border-color: var(--ink); }
@@ -526,16 +544,58 @@
       `총 ${allMembers.length}명 가입` + (q ? ` · 검색결과 ${list.length}명` : "");
     const el = document.getElementById("memberList");
     if (!list.length) { el.innerHTML = `<div class="empty">해당하는 회원이 없습니다.</div>`; return; }
-    el.innerHTML = `<div class="member-cards">` + list.map((u) => `
+    const online = list.filter((u) => u.online).length;
+    if (online) {
+      document.getElementById("memberSummary").textContent += ` · 🟢 접속 중 ${online}명`;
+    }
+    el.innerHTML = `<div class="member-cards">` + list.map((u) => {
+      const st = u.online
+        ? `<span class="on-badge live">● 접속 중</span>`
+        : `<span class="on-badge off">○ OFF</span>`;
+      const orders = (u.recentOrders || []).length
+        ? `<div class="mc-orders"><div class="mc-orders-t">최근 주문</div>` +
+          u.recentOrders.map((o) => {
+            const tag = o.hasResult ? "결과지 완료" : (o.paymentConfirmed ? "작성 중" : "입금 대기");
+            const cls = o.hasResult ? "ok" : (o.paymentConfirmed ? "mid" : "wait");
+            return `<div class="mc-order">
+              <span class="o-nm">${o.orderName || "-"}</span>
+              <span class="o-amt">${Number(o.amount || 0).toLocaleString()}원</span>
+              <span class="o-tag ${cls}">${tag}</span>
+              <span class="o-dt">${o.createdAt ? new Date(o.createdAt).toLocaleDateString("ko-KR") : "-"}</span>
+            </div>`;
+          }).join("") + `</div>`
+        : `<div class="mc-orders"><div class="mc-none">아직 주문 이력이 없습니다.</div></div>`;
+      return `
       <div class="member-card">
-        <div class="mc-top"><span class="mc-name">${u.name || "이름없음"}</span><span class="mc-badge">${providerLabel(u.provider)}</span></div>
+        <div class="mc-top">
+          <span class="mc-name">${u.name || "이름없음"} ${st}</span>
+          <span class="mc-badge">${providerLabel(u.provider)}</span>
+        </div>
         <div class="mc-info">
           <div>📧 ${u.email || "-"}</div>
           <div>📱 ${u.phone || "-"}</div>
-          <div>🧾 주문 ${u.orderCount || 0}건</div>
-          <div>🗓️ ${u.createdAt ? new Date(u.createdAt).toLocaleString("ko-KR") : "-"} 가입</div>
+          <div>🔑 접속 ${u.loginCount || 0}회 · 최근 ${u.lastSeenAt ? new Date(u.lastSeenAt).toLocaleString("ko-KR") : "기록 없음"}</div>
+          <div>🧾 주문 ${u.orderCount || 0}건 · 🗓️ ${u.createdAt ? new Date(u.createdAt).toLocaleDateString("ko-KR") : "-"} 가입</div>
         </div>
-      </div>`).join("") + `</div>`;
+        ${orders}
+        <div style="margin-top:10px;text-align:right;">
+          <button class="action-btn btn-delete" onclick="deleteMember('${u.userId}','${(u.name || "회원").replace(/'/g, "\\'")}',${u.orderCount || 0})">회원 삭제</button>
+        </div>
+      </div>`;
+    }).join("") + `</div>`;
+  }
+
+  async function deleteMember(userId, name, orderCount) {
+    let msg = `${name} 님을 삭제할까요?\n\n삭제하면 이 회원은 로그인할 수 없습니다.`;
+    if (orderCount) msg += `\n※ 주문 ${orderCount}건은 [주문 관리]에 그대로 남습니다.`;
+    if (!confirm(msg)) return;
+    try {
+      const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!data.success) { alert(data.message || "삭제 실패"); return; }
+      alert(data.message || "삭제했습니다.");
+      loadMembers();
+    } catch (e) { alert("오류: " + e.message); }
   }
   document.getElementById("viewTabs").addEventListener("click", (e) => {
     const b = e.target.closest(".view-tab"); if (!b) return;

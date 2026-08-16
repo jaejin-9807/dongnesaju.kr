@@ -226,6 +226,9 @@ router.get("/:provider/callback", async (req, res, next) => {
       );
     }
 
+    // 접속 횟수·마지막 접속 시각 기록(관리자 회원관리에서 확인)
+    try { userStore.recordLogin(user.userId); } catch (e) {}
+
     issueSessionAndRedirect(res, user);
   } catch (e) {
     console.error(`${friendlyName(provider)} 로그인 오류:`, e.message);

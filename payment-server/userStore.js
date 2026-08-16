@@ -145,4 +145,44 @@ function listUsers() {
     .sort((a, b) => (String(a.createdAt) < String(b.createdAt) ? 1 : -1));
 }
 
-module.exports = { createUser, verifyLogin, findByEmail, findByPhone, findById, findOrCreateBySocial, sanitize, listUsers };
+/** 로그인 성공 시 호출 — 접속 횟수와 마지막 접속 시각을 기록한다. */
+function recordLogin(userId) {
+  if (!userId) return null;
+  const all = readAll();
+  const u = all[userId];
+  if (!u) return null;
+  u.loginCount = (u.loginCount || 0) + 1;
+  u.lastLoginAt = new Date().toISOString();
+  u.lastSeenAt = u.lastLoginAt;
+  writeAll(all);
+  return sanitize(u);
+}
+
+/** 페이지 활동이 있을 때 호출 — '지금 접속 중'인지 판단할 근거가 된다. */
+function touch(userId) {
+  if (!userId) return;
+  const all = readAll();
+  const u = all[userId];
+  if (!u) return;
+  const now = Date.now();
+  const prev = u.lastSeenAt ? new Date(u.lastSeenAt).getTime() : 0;
+  // 잦은 디스크 쓰기를 막기 위해 30초 이상 지났을 때만 기록
+  if (now - prev < 30000) return;
+  u.lastSeenAt = new Date(now).toISOString();
+  writeAll(all);
+}
+
+/** 관리자: 회원 삭제 */
+function deleteUser(userId) {
+  const all = readAll();
+  if (!all[userId]) return false;
+  delete all[userId];
+  writeAll(all);
+  return true;
+}
+
+module.exports = {
+  createUser, verifyLogin, findByEmail, findByPhone, findById,
+  findOrCreateBySocial, sanitize, listUsers,
+  recordLogin, touch, deleteUser,
+};
