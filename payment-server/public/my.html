@@ -75,6 +75,23 @@
     border-top-color: var(--gold); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+  /* ── 결과지 작성 진행 표시 ─────────────────────────── */
+  .brush { font-size: 30px; display: inline-block; animation: brushMove 2.4s ease-in-out infinite; }
+  @keyframes brushMove { 0%,100%{ transform: translateX(-7px) rotate(-8deg);} 50%{ transform: translateX(7px) rotate(8deg);} }
+  .prog-wrap { margin: 14px 0 10px; }
+  .prog-bar { position: relative; height: 22px; background: #EFE7D4; border-radius: 11px; overflow: hidden;
+    box-shadow: inset 0 1px 3px rgba(28,35,51,.10); }
+  .prog-fill { height: 100%; width: 0%; border-radius: 11px; transition: width 1.1s cubic-bezier(.4,0,.2,1);
+    background: linear-gradient(90deg, #C9A24B, #E0BE6C, #C9A24B); background-size: 200% 100%;
+    animation: progShine 2.2s linear infinite; }
+  @keyframes progShine { to { background-position: -200% 0; } }
+  .prog-pct { font-size: 20px; font-weight: 800; color: var(--ink); margin-top: 8px; letter-spacing: 0.5px; }
+  .prog-step { font-size: 13.5px; color: var(--text-sub); margin-top: 4px; line-height: 1.6; min-height: 20px; }
+  .prog-steps { display: flex; justify-content: space-between; margin-top: 12px; gap: 4px; }
+  .prog-steps .s { flex: 1; font-size: 10.5px; color: #B9AE95; text-align: center; line-height: 1.35; }
+  .prog-steps .s.on { color: var(--gold); font-weight: 800; }
+  .prog-steps .s .dot { display: block; width: 9px; height: 9px; border-radius: 50%; background: #DED3B8; margin: 0 auto 4px; }
+  .prog-steps .s.on .dot { background: var(--gold); box-shadow: 0 0 0 3px rgba(201,162,75,.22); }
 
   .empty { text-align: center; padding: 60px 20px; color: var(--text-sub); font-size: 14px; }
   .empty a { color: var(--ink); font-weight: 700; }
@@ -156,13 +173,59 @@
             사장님이 입금을 확인하면 이 화면에서 바로 결과지를 보실 수 있어요.</div>
         </div>`;
     }
-    // 3) 입금은 확인됐지만 아직 결과지 생성 전
+    // 3) 입금은 확인됐지만 아직 결과지 생성 전 — 작성 과정을 진행률로 보여 준다
+    const startedAt = o.paymentConfirmedAt || o.paidAt || o.createdAt || new Date().toISOString();
     return `
       <div class="result-box wait">
-        <div class="rb-title">🖊️ 결과지를 준비하고 있어요</div>
-        <div class="rb-note">입금이 확인되었어요. 사장님이 정성껏 사주를 풀이하는 중이에요. 완성되면 이 화면에서 바로 열람할 수 있어요. (자동으로 새로고침돼요)</div>
+        <div class="brush">🖌️</div>
+        <div class="rb-title">역술가 님이 결과지를 만들고 있습니다</div>
+        <div class="prog-wrap" data-started="${startedAt}">
+          <div class="prog-bar"><div class="prog-fill"></div></div>
+          <div class="prog-pct">0%</div>
+          <div class="prog-step">준비하는 중…</div>
+          <div class="prog-steps">
+            <div class="s"><span class="dot"></span>사주 원국<br>세우기</div>
+            <div class="s"><span class="dot"></span>오행·십성<br>분석</div>
+            <div class="s"><span class="dot"></span>대운·세운<br>풀이</div>
+            <div class="s"><span class="dot"></span>글로<br>옮기기</div>
+            <div class="s"><span class="dot"></span>책자<br>엮기</div>
+          </div>
+        </div>
+        <div class="rb-note">정성껏 풀이하는 중이라 최대 10분 정도 걸립니다.<br>
+          창을 닫으셔도 계속 진행되며, 완성되면 이 화면에서 바로 보실 수 있어요.</div>
       </div>`;
   }
+
+  // ── 결과지 작성 진행률 애니메이션 ──────────────────────────
+  // 실제 생성 시간(약 10분)에 맞춰 0→97%까지 천천히 차오르고,
+  // 완성되면 렌더가 갱신되며 '보기' 버튼으로 바뀐다.
+  const PROG_TOTAL_MS = 10 * 60 * 1000;
+  const PROG_STEPS = [
+    { to: 18, label: "태어난 연·월·일·시로 사주 원국을 세우고 있어요" },
+    { to: 40, label: "다섯 기운(오행)의 균형과 십성을 살펴보는 중이에요" },
+    { to: 62, label: "10년 큰 흐름(대운)과 올해 운세를 짚어 보는 중이에요" },
+    { to: 84, label: "풀이한 내용을 글로 정성껏 옮겨 적고 있어요" },
+    { to: 97, label: "표와 그림을 넣어 책자로 엮는 중이에요" },
+  ];
+  function tickProgress() {
+    document.querySelectorAll(".prog-wrap").forEach((w) => {
+      const started = new Date(w.dataset.started || Date.now()).getTime();
+      const elapsed = Math.max(0, Date.now() - started);
+      const ratio = Math.min(1, elapsed / PROG_TOTAL_MS);
+      // 초반엔 빠르게, 후반엔 천천히(기다림의 체감을 줄임)
+      const pct = Math.min(97, Math.round(97 * Math.pow(ratio, 0.72)));
+      const fill = w.querySelector(".prog-fill");
+      const pctEl = w.querySelector(".prog-pct");
+      const stepEl = w.querySelector(".prog-step");
+      if (fill) fill.style.width = pct + "%";
+      if (pctEl) pctEl.textContent = pct + "%";
+      let idx = PROG_STEPS.findIndex((s) => pct <= s.to);
+      if (idx < 0) idx = PROG_STEPS.length - 1;
+      if (stepEl) stepEl.textContent = PROG_STEPS[idx].label;
+      w.querySelectorAll(".prog-steps .s").forEach((el, i) => el.classList.toggle("on", i <= idx));
+    });
+  }
+  setInterval(tickProgress, 1000);
 
   function cardHtml(o) {
     const st = statusInfo(o);
@@ -192,6 +255,7 @@
       }
       listEl.innerHTML = ordersData.orders.map(cardHtml).join("");
       tickCountdowns();
+      tickProgress();   // 진행률 막대를 즉시 현재 값으로 표시
     } catch (e) {
       listEl.innerHTML = `<div class="empty">주문 정보를 불러오지 못했습니다: ${e.message}</div>`;
     }

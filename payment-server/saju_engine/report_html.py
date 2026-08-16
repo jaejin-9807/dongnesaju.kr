@@ -127,30 +127,83 @@ CHEONGAN_OHENG = {"갑": "목", "을": "목", "병": "화", "정": "화", "무":
                   "기": "토", "경": "금", "신": "금", "임": "수", "계": "수"}
 
 
-def fortune_score(oheng, yongsin):
-    """용신 기준으로 어떤 오행 시기의 '운세 지수'(0~100 근사)를 매긴다."""
+# 지지(한글) -> 오행 (본기 기준)
+JIJI_OHENG_KO = {
+    "자": "수", "축": "토", "인": "목", "묘": "목", "진": "토", "사": "화",
+    "오": "화", "미": "토", "신": "금", "유": "금", "술": "토", "해": "수",
+}
+# 오행 상생/상극
+_SAENG = {"목": "화", "화": "토", "토": "금", "금": "수", "수": "목"}
+_GEUK = {"목": "토", "토": "수", "수": "화", "화": "금", "금": "목"}
+
+
+def _affinity(oheng, y):
+    """어떤 오행이 나에게 얼마나 유리한가(0~100). 용신 관계 + 생극까지 본다."""
     if not oheng:
-        return 60
-    if oheng == yongsin.get("yongsin"):
-        return 88
-    if oheng == yongsin.get("huisin"):
-        return 78
-    if oheng == yongsin.get("hansin"):
-        return 62
-    if oheng == yongsin.get("gusin"):
-        return 46
-    if oheng == yongsin.get("gisin"):
-        return 36
-    return 60
+        return 58.0
+    yong, hui = y.get("yongsin"), y.get("huisin")
+    gi, gu = y.get("gisin"), y.get("gusin")
+    if oheng == yong:
+        return 92.0
+    if oheng == hui:
+        return 80.0
+    if oheng == gi:
+        return 32.0
+    if oheng == gu:
+        return 42.0
+    # 용신을 생해 주면 가점, 용신을 극하면 감점
+    if yong and _SAENG.get(oheng) == yong:
+        return 74.0
+    if yong and _GEUK.get(oheng) == yong:
+        return 45.0
+    if yong and _SAENG.get(yong) == oheng:   # 용신이 생하는 대상(기운을 빼감)
+        return 62.0
+    return 58.0
+
+
+def fortune_score(oheng, yongsin):
+    """(호환용) 오행 하나만으로 매기는 단순 지수."""
+    return int(round(_affinity(oheng, yongsin or {})))
 
 
 def compute_daeun_scores(data):
+    """대운 운세 지수.
+    ── 개선점 ─────────────────────────────────────────────
+    · 천간만 보던 것을 → 천간(55%) + 지지(45%) 로 함께 계산
+    · 용신/기신 일치 여부뿐 아니라 상생·상극 관계까지 반영
+    · 대운 간지 자체를 시드로 미세 변동을 주어, 같은 해에 태어난
+      사람이라도 그래프가 똑같이 겹치지 않게 함
+    · 전체를 평균 60 근처로 재중심화해 '계속 우하향'처럼 보이는 왜곡을 막음
+    ──────────────────────────────────────────────────────
+    """
     daeun = data.get("daeun", {}) or {}
     yongsin = data.get("yongsin", {}) or {}
     ages = daeun.get("startAges", []) or []
     pillars = daeun.get("pillars", []) or []
-    ohengs = [CHEONGAN_OHENG.get(p[0]) if p else None for p in pillars]
-    scores = [fortune_score(o, yongsin) for o in ohengs]
+
+    ohengs, raw = [], []
+    for p in pillars:
+        st = p[0] if p else None
+        br = p[1] if p and len(p) > 1 else None
+        o_st = CHEONGAN_OHENG.get(st)
+        o_br = JIJI_OHENG_KO.get(br)
+        ohengs.append(o_st or o_br)
+        s = _affinity(o_st, yongsin) * 0.55 + _affinity(o_br, yongsin) * 0.45
+        # 천간·지지가 같은 기운으로 겹치면 그 성격이 더 뚜렷해진다
+        if o_st and o_br and o_st == o_br:
+            s += 4.0 if s >= 60 else -4.0
+        # 간지 조합 자체로 만든 미세 변동(±3) — 같은 해 태생끼리도 곡선이 갈리도록
+        if p:
+            h = sum(ord(c) for c in str(p))
+            s += ((h % 13) - 6) * 0.5
+        raw.append(s)
+
+    # 재중심화: 평균을 60 근처로 옮기고 진폭은 유지 → 무조건 우하향/우상향 왜곡 방지
+    if raw:
+        avg = sum(raw) / len(raw)
+        raw = [r + (60.0 - avg) * 0.55 for r in raw]
+    scores = [int(round(max(18, min(96, r)))) for r in raw]
+
     # 현재 대운 index
     b = data.get("birth", {}) or {}
     report_year = int((data.get("meta") or {}).get("reportYear") or 2026)
@@ -265,11 +318,54 @@ class ChapterRegistry:
         return "".join(rows)
 
 
-def _p(text):
+# ── 본문에서 자동으로 굵게 강조할 핵심 표현 ───────────────────────
+#  읽어 내려가며 중요한 대목이 눈에 바로 들어오도록 한다.
+_EMPH_PATTERNS = [
+    # 시기·수치 (가장 실용적인 정보라 우선 강조)
+    r"\d{1,2}세~\d{1,2}세",
+    r"\d{1,2}월",
+    # 강점·장점 신호
+    r"(?:뛰어난|타고난|탁월한|남다른)\s?[가-힣]{2,5}",
+    r"강점|장점|재능|저력|승부처|전성기|황금기|기회",
+    # 약점·주의 신호
+    r"약점|단점|주의|조심|경계|무리|과욕|한계|취약",
+    # 실행 지시
+    r"반드시|특히|가장 중요한 것은|다만",
+]
+_EMPH_RE = _re.compile("|".join(_EMPH_PATTERNS))
+
+
+def _emphasize(html_text, limit=6):
+    """문장 속 핵심 표현을 굵게. 이미 <b>로 감싼 부분은 건드리지 않는다."""
+    if not html_text:
+        return html_text
+    count = {"n": 0}
+
+    def rep(m):
+        if count["n"] >= limit:
+            return m.group(0)
+        count["n"] += 1
+        return f"<b>{m.group(0)}</b>"
+
+    # <b>…</b> 바깥 구간만 치환
+    out, last = [], 0
+    for m in _re.finditer(r"<b>.*?</b>", html_text, _re.S):
+        seg = html_text[last:m.start()]
+        out.append(_EMPH_RE.sub(rep, seg) if _EMPH_RE else seg)
+        out.append(m.group(0))
+        last = m.end()
+    tail = html_text[last:]
+    out.append(_EMPH_RE.sub(rep, tail) if _EMPH_RE else tail)
+    return "".join(out)
+
+
+def _p(text, emphasize=True):
     # 문서 형식 톤(~합니다)을 유지하고, 어려운 용어만 쉬운 말로 바꾼다. (구어체 어미 변환은 하지 않음)
     s = esc(_simplify(plain(text)))
     # 본문에 의도적으로 넣은 강조 태그(<b>)만 다시 살린다 (esc 로 글자가 되어 노출되는 버그 방지)
     s = s.replace("&lt;b&gt;", "<b>").replace("&lt;/b&gt;", "</b>")
+    if emphasize:
+        s = _emphasize(s)
     return f"<p class='body-text'>{s}</p>"
 
 
@@ -455,6 +551,42 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
         PZ = {"name": customer_name, "time_text": "", "name_text": "",
               "time_phase": None, "name_profile": None, "V": None}
     _V = PZ.get("V")
+
+    def _term(term):
+        """'상관격이란? …' 형태의 용어 풀이 박스."""
+        try:
+            from personalize import term_note
+            k, v = term_note(term)
+            if not k:
+                return ""
+            return (f"<div class='card' style='background:#FBF6EA;'>"
+                    f"<b>{esc(k)}이란?</b><br>{esc(v)}</div>")
+        except Exception:
+            return ""
+
+    def _remedy_card():
+        """단점·약한 기운을 보완하는 실천 처방(말투·책·음식·방향·습관)."""
+        try:
+            from personalize import remedy_card
+            _sip_group = None
+            _g = _sipseong_groups(sipseong)
+            if _g:
+                _sip_group = min(_g, key=lambda k: _g[k])   # 가장 약한 십성 그룹
+            r = remedy_card(missing, yongsin.get("yongsin", ""), _sip_group)
+            if not r:
+                return ""
+            return (
+                "<div class='card' style='border-left:3px solid #C9A24B;'>"
+                f"<b>🌱 {esc(r['oheng'])} 기운을 채우는 실천 처방</b><br>"
+                f"· <b>말투</b> — {esc(r['tone'])}<br>"
+                f"· <b>바꿀 습관</b> — {esc(r['caution'])}, {esc(r['habit'])}<br>"
+                f"· <b>가까이할 색</b> — {esc(r['color'])} / <b>방향</b> — {esc(r['dir'])}<br>"
+                f"· <b>도움이 되는 음식</b> — {esc(r['food'])}<br>"
+                f"· <b>읽으면 좋은 책</b> — {esc(r['book'])}<br>"
+                f"· <b>마음에 새길 말</b> — “{esc(r['word'])}”"
+                "</div>")
+        except Exception:
+            return ""
 
     def _pz(topic):
         """섹션마다 '이 사람에게만 해당하는' 마무리 문장을 붙여
@@ -686,7 +818,11 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
         _sub("나의 강점과 보완해야 할 부분")
         body_parts.append(f"<div class='callout'><div class='callout-label'>{esc(plain(gyeokguk.get('name','')))}</div>"
                           f"<div>{esc(plain(gyeokguk.get('description','')))}</div></div>")
+        # 어려운 한자 용어가 나오면 바로 아래에 '○○이란?' 풀이를 붙인다
+        body_parts.append(_term(gyeokguk.get("name", "")))
         body_parts.append(_p(txt("p1_강점보완", txt("격국해설", txt("타고난성향")))))
+        # 약한 부분을 '알려주고 끝'이 아니라, 어떻게 바꿀지 실천 처방까지 준다
+        body_parts.append(_remedy_card())
 
     body_parts.append(_pz("성격"))
 
