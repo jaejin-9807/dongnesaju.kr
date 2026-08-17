@@ -38,8 +38,41 @@ function maskName(name) {
   return n[0] + "○".repeat(Math.max(1, n.length - 1));
 }
 
+// 후기 사진 저장 폴더
+const IMG_DIR = path.join(DATA_DIR, "review_images");
+try { fs.mkdirSync(IMG_DIR, { recursive: true }); } catch (e) {}
+
+/** base64 데이터URL을 파일로 저장하고 파일명을 돌려준다. */
+function saveImage(dataUrl) {
+  const m = String(dataUrl || "").match(/^data:image\/(png|jpe?g|webp);base64,(.+)$/i);
+  if (!m) return null;
+  const ext = m[1].toLowerCase() === "jpg" ? "jpeg" : m[1].toLowerCase();
+  const buf = Buffer.from(m[2], "base64");
+  if (buf.length > 3 * 1024 * 1024) return null;   // 3MB 초과 거부
+  const name = `${Date.now()}_${nanoid(8)}.${ext === "jpeg" ? "jpg" : ext}`;
+  fs.writeFileSync(path.join(IMG_DIR, name), buf);
+  return name;
+}
+
+/** 저장된 사진 파일의 실제 경로 */
+function imagePath(name) {
+  const safe = String(name || "").replace(/[^\w.\-]/g, "");
+  if (!safe) return null;
+  const p = path.join(IMG_DIR, safe);
+  return fs.existsSync(p) ? p : null;
+}
+
+function deleteImages(names) {
+  (names || []).forEach((n) => {
+    try {
+      const p = imagePath(n);
+      if (p) fs.unlinkSync(p);
+    } catch (e) {}
+  });
+}
+
 /** 후기 작성 (주문 1건당 1개) */
-function createReview({ userId, orderId, orderName, customerName, rating, content }) {
+function createReview({ userId, orderId, orderName, customerName, rating, content, images }) {
   const all = readAll();
   // 같은 주문에 이미 후기가 있으면 거부
   const dup = Object.values(all).find((r) => r.orderId === orderId);
@@ -55,6 +88,9 @@ function createReview({ userId, orderId, orderName, customerName, rating, conten
     maskedName: maskName(customerName),
     rating: Math.max(1, Math.min(5, parseInt(rating, 10) || 5)),
     content: String(content || "").slice(0, 1000),
+    // 첨부 사진(최대 3장)
+    images: (Array.isArray(images) ? images : []).slice(0, 3)
+      .map(saveImage).filter(Boolean),
     visible: true,          // 관리자가 숨길 수 있음
     reply: "",              // 사장님 답글
     createdAt: new Date().toISOString(),
@@ -82,6 +118,7 @@ function listPublic(limit = 30) {
       orderName: r.orderName,
       rating: r.rating,
       content: r.content,
+      images: r.images || [],
       reply: r.reply || "",
       createdAt: r.createdAt,
     }));
@@ -118,6 +155,7 @@ function updateReview(reviewId, patch) {
 function deleteReview(reviewId) {
   const all = readAll();
   if (!all[reviewId]) return false;
+  deleteImages(all[reviewId].images);   // 첨부 사진도 함께 정리
   delete all[reviewId];
   writeAll(all);
   return true;
@@ -126,4 +164,5 @@ function deleteReview(reviewId) {
 module.exports = {
   createReview, listAll, listPublic, summary,
   hasReviewForOrder, listByUser, updateReview, deleteReview, maskName,
+  imagePath,
 };

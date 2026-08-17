@@ -648,6 +648,9 @@
           <div style="background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:11px 13px;margin:8px 0;font-size:13.5px;line-height:1.7;color:var(--ink);">
             ${(r.content || "").replace(/</g, "&lt;")}
           </div>
+          ${(r.images && r.images.length) ? `<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:8px;">${
+            r.images.map((n) => `<a href="/review-images/${n}" target="_blank"><img src="/review-images/${n}" style="width:76px;height:76px;object-fit:cover;border-radius:7px;border:1px solid var(--line);" alt="첨부 사진" /></a>`).join("")
+          }</div>` : ""}
           ${r.reply ? `<div style="background:#FBF4E2;border-radius:8px;padding:9px 12px;font-size:13px;margin-bottom:8px;">💬 <b>답글</b>: ${(r.reply || "").replace(/</g, "&lt;")}</div>` : ""}
           <div class="action-btns">
             <button class="action-btn ${r.visible ? "btn-reenable" : "btn-confirm"}" onclick="toggleReview('${r.reviewId}',${!r.visible})">${r.visible ? "숨기기" : "공개하기"}</button>

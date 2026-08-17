@@ -247,6 +247,7 @@
     </a>
   </div>
   <div class="nav-right" id="navRight">
+    <a href="/reviews.html" class="hbtn hbtn-login">💬 후기</a>
     <a href="/login.html" class="hbtn hbtn-login">로그인</a>
     <a href="/signup.html" class="hbtn hbtn-signup">회원가입</a>
     <a href="/admin-login.html" class="admin-link">관리자</a>
@@ -682,8 +683,14 @@
             <span class="rc-date">${r.createdAt ? new Date(r.createdAt).toLocaleDateString("ko-KR") : ""}</span>
           </div>
           <div class="rc-body">${(r.content || "").replace(/</g, "&lt;")}</div>
+          ${(r.images && r.images.length) ? `<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:9px;">${
+            r.images.map((n) => `<img src="/review-images/${n}" style="width:86px;height:86px;object-fit:cover;border-radius:8px;border:1px solid var(--line);" alt="후기 사진" />`).join("")
+          }</div>` : ""}
           ${r.reply ? `<div class="rc-reply">💬 <b>사장님</b> ${(r.reply || "").replace(/</g, "&lt;")}</div>` : ""}
-        </div>`).join("");
+        </div>`).join("") +
+        `<a href="/reviews.html" style="display:block;text-align:center;margin-top:14px;padding:13px;
+          background:var(--paper);border:1px solid var(--line);border-radius:9px;
+          color:var(--ink);text-decoration:none;font-weight:800;font-size:14px;">후기 전체 보기 · 후기 쓰기 →</a>`;
       document.getElementById("reviewSection").style.display = "";
     } catch (e) { /* 후기가 없거나 실패하면 섹션을 숨긴 채 둔다 */ }
   })();
@@ -707,6 +714,7 @@
         loggedInUser = data.user;
         navRight.innerHTML =
           `<span class="user-name">${data.user.name}님</span>` +
+          `<a href="/reviews.html" class="hbtn hbtn-login">💬 후기</a>` +
           `<a href="/my.html" class="hbtn hbtn-signup">마이페이지</a>` +
           `<a href="#" id="logoutLink" class="logout-link">로그아웃</a>` +
           `<a href="/admin-login.html" class="admin-link">관리자</a>`;

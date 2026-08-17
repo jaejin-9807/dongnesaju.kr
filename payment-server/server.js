@@ -34,8 +34,9 @@ const { requireAdmin } = adminAuthRoutes;
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// 후기 사진(base64)이 올라올 수 있어 본문 크기를 넉넉히 잡는다
+app.use(express.json({ limit: "12mb" }));
+app.use(express.urlencoded({ extended: true, limit: "12mb" }));
 app.use(cookieMiddleware);
 
 // ---------------------------------------------------------------
@@ -597,9 +598,25 @@ app.get("/api/reviews", (req, res) => {
   });
 });
 
+// 후기 사진 보기
+app.get("/review-images/:name", (req, res) => {
+  const p = reviewStore.imagePath(req.params.name);
+  if (!p) return res.status(404).send("not found");
+  res.sendFile(p);
+});
+
+// 고객: 후기를 남길 수 있는 내 주문 목록(결과지 완료 + 아직 후기 없음)
+app.get("/api/reviews/eligible", requireCustomer, (req, res) => {
+  const mine = orderStore.listOrders().filter((o) => o.userId === req.currentUser.userId);
+  const list = mine
+    .filter((o) => o.pdfPath && o.paymentConfirmed && !reviewStore.hasReviewForOrder(o.orderId))
+    .map((o) => ({ orderId: o.orderId, orderName: o.orderName, createdAt: o.createdAt }));
+  res.json({ success: true, orders: list });
+});
+
 // 고객: 내 주문에 후기 남기기 (결과지를 받아 본 주문만)
 app.post("/api/reviews", requireCustomer, (req, res) => {
-  const { orderId, rating, content } = req.body || {};
+  const { orderId, rating, content, images } = req.body || {};
   if (!orderId) return res.status(400).json({ success: false, message: "주문 정보가 필요합니다." });
   if (!content || String(content).trim().length < 5) {
     return res.status(400).json({ success: false, message: "후기를 5자 이상 적어 주세요." });
@@ -619,6 +636,7 @@ app.post("/api/reviews", requireCustomer, (req, res) => {
     customerName: order.customerName || req.currentUser.name,
     rating,
     content,
+    images,
   });
   if (r.error) return res.status(400).json({ success: false, message: r.error });
   // 사장님에게 카카오톡 알림

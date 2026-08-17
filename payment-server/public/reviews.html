@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>후기 · 동네사주카페</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --ink: #1C2333; --gold: #C9A24B; --gold-light: #E8D4A0;
+    --paper: #F7F3E8; --paper-2: #FDFBF5; --text-sub: #6B6252; --line: #E3D9C0;
+  }
+  body { font-family: "Pretendard", "Noto Sans KR", "맑은 고딕", sans-serif;
+    background: var(--paper); color: var(--ink); min-height: 100vh; }
+  header { background: var(--ink); color: var(--gold-light); padding: 16px 20px;
+    border-bottom: 3px solid var(--gold); display: flex; align-items: center; justify-content: space-between; }
+  header .logo { font-size: 17px; font-weight: 800; color: var(--gold-light); text-decoration: none; }
+  header .nav-right { display: flex; gap: 9px; align-items: center; }
+  .hbtn { display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    font-size: 13.5px; font-weight: 800; padding: 8px 14px; border-radius: 9px;
+    text-decoration: none; line-height: 1; white-space: nowrap; cursor: pointer; border: none; font-family: inherit; }
+  .hbtn-gold { background: var(--gold); color: var(--ink); }
+  .hbtn-light { background: var(--gold-light); color: var(--ink); }
+  main { max-width: 720px; margin: 0 auto; padding: 22px 16px 60px; }
+  h1 { font-size: 21px; font-weight: 800; margin-bottom: 4px; }
+  .sub { font-size: 13px; color: var(--text-sub); margin-bottom: 18px; line-height: 1.6; }
+  .card { background: var(--paper-2); border: 1px solid var(--line); border-radius: 12px;
+    padding: 18px; margin-bottom: 16px; border-top: 3px solid var(--gold); }
+  .head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .head .avg { font-size: 36px; font-weight: 800; line-height: 1; }
+  .head .stars { color: #F5B301; font-size: 20px; letter-spacing: 2px; }
+  .head .cnt { font-size: 13px; color: var(--text-sub); margin-top: 2px; }
+  .write-btn { width: 100%; padding: 15px; border: none; border-radius: 10px; background: var(--ink);
+    color: var(--gold-light); font-size: 15.5px; font-weight: 800; font-family: inherit; cursor: pointer; margin-top: 14px; }
+  .write-btn:hover { opacity: .93; }
+  /* 작성 폼 */
+  .form-box { display: none; }
+  .form-box.on { display: block; }
+  .f-row { margin-bottom: 14px; }
+  .f-row label { display: block; font-size: 13px; font-weight: 800; margin-bottom: 6px; }
+  .f-row select, .f-row textarea { width: 100%; padding: 11px 12px; border: 1px solid var(--line);
+    border-radius: 7px; font-size: 14px; font-family: inherit; background: #fff; }
+  .f-row textarea { min-height: 120px; resize: vertical; line-height: 1.7; }
+  .stars-pick { display: flex; gap: 6px; justify-content: center; margin: 4px 0 2px; }
+  .stars-pick .st { font-size: 38px; color: #DCD3BE; cursor: pointer; line-height: 1; user-select: none; transition: transform .12s; }
+  .stars-pick .st.on { color: #F5B301; }
+  .stars-pick .st:active { transform: scale(1.2); }
+  .rate-label { text-align: center; font-size: 13px; color: var(--text-sub); font-weight: 700; margin-bottom: 6px; }
+  .photo-btn { display: inline-block; padding: 11px 16px; border: 1.5px dashed var(--gold);
+    border-radius: 9px; background: #FBF4E2; color: var(--ink); font-size: 13.5px; font-weight: 800; cursor: pointer; }
+  .photo-list { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .photo-item { position: relative; width: 84px; height: 84px; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); }
+  .photo-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .photo-item .del { position: absolute; top: 3px; right: 3px; background: rgba(0,0,0,.6); color: #fff;
+    border: none; border-radius: 50%; width: 21px; height: 21px; font-size: 13px; cursor: pointer; line-height: 1; }
+  .submit-btn { width: 100%; padding: 15px; border: none; border-radius: 10px; background: var(--gold);
+    color: var(--ink); font-size: 15.5px; font-weight: 800; font-family: inherit; cursor: pointer; }
+  .cancel-btn { width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 10px;
+    background: #fff; color: var(--text-sub); font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer; margin-top: 8px; }
+  .notice { background: #FBF4E2; border: 1px solid var(--line); border-radius: 9px;
+    padding: 12px 14px; font-size: 13px; line-height: 1.7; color: var(--ink); }
+  .notice a { color: var(--ink); font-weight: 800; }
+  /* 후기 목록 */
+  .rv { background: var(--paper-2); border: 1px solid var(--line); border-radius: 11px; padding: 15px 16px; margin-bottom: 11px; }
+  .rv-top { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; flex-wrap: wrap; }
+  .rv-star { color: #F5B301; font-size: 14.5px; letter-spacing: 1px; }
+  .rv-name { font-size: 13.5px; font-weight: 800; }
+  .rv-prod { font-size: 11.5px; color: var(--text-sub); background: var(--paper);
+    border: 1px solid var(--line); border-radius: 20px; padding: 2px 9px; }
+  .rv-date { font-size: 11.5px; color: #B4AC98; margin-left: auto; }
+  .rv-body { font-size: 14px; line-height: 1.8; white-space: pre-wrap; }
+  .rv-imgs { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
+  .rv-imgs img { width: 94px; height: 94px; object-fit: cover; border-radius: 8px;
+    border: 1px solid var(--line); cursor: zoom-in; }
+  .rv-reply { margin-top: 10px; background: #FBF4E2; border-radius: 8px; padding: 10px 12px; font-size: 13px; line-height: 1.7; }
+  .empty { text-align: center; color: var(--text-sub); padding: 40px 20px; font-size: 14px; line-height: 1.7; }
+  /* 사진 확대 */
+  .viewer { position: fixed; inset: 0; background: rgba(0,0,0,.86); display: none;
+    align-items: center; justify-content: center; z-index: 999; padding: 20px; }
+  .viewer.on { display: flex; }
+  .viewer img { max-width: 100%; max-height: 92vh; border-radius: 6px; }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="logo" href="/">易 동네사주카페</a>
+  <div class="nav-right" id="navRight">
+    <a href="/" class="hbtn hbtn-light">홈으로</a>
+    <a href="/my.html" class="hbtn hbtn-gold">마이페이지</a>
+  </div>
+</header>
+
+<main>
+  <h1>💬 이용 후기</h1>
+  <div class="sub">사주 결과지를 받아 보신 분들이 남겨 주신 솔직한 이야기입니다.</div>
+
+  <div class="card">
+    <div class="head" id="revHead">
+      <div class="avg">-</div>
+      <div><div class="stars">☆☆☆☆☆</div><div class="cnt">후기를 불러오는 중…</div></div>
+    </div>
+    <button class="write-btn" id="writeBtn">✍️ 후기 쓰기</button>
+
+    <!-- 작성 폼 -->
+    <div class="form-box" id="formBox" style="margin-top:16px;">
+      <div class="f-row">
+        <label>어떤 상품의 후기인가요?</label>
+        <select id="fOrder"></select>
+      </div>
+      <div class="f-row">
+        <label>별점을 선택해 주세요</label>
+        <div class="stars-pick" id="starsPick">
+          <span class="st on" data-n="1">★</span><span class="st on" data-n="2">★</span>
+          <span class="st on" data-n="3">★</span><span class="st on" data-n="4">★</span>
+          <span class="st on" data-n="5">★</span>
+        </div>
+        <div class="rate-label" id="rateLabel">아주 만족해요 (5점)</div>
+      </div>
+      <div class="f-row">
+        <label>후기 내용</label>
+        <textarea id="fContent" placeholder="어떤 점이 좋았는지, 어떤 도움이 되었는지 편하게 적어 주세요. (5자 이상)"></textarea>
+      </div>
+      <div class="f-row">
+        <label>사진 첨부 <span style="font-weight:500;color:var(--text-sub);">(선택 · 최대 3장)</span></label>
+        <label class="photo-btn" for="fPhoto">📷 사진 고르기</label>
+        <input type="file" id="fPhoto" accept="image/*" multiple style="display:none;" />
+        <div class="photo-list" id="photoList"></div>
+      </div>
+      <button class="submit-btn" id="submitBtn">후기 등록하기</button>
+      <button class="cancel-btn" id="cancelBtn">취소</button>
+    </div>
+
+    <div id="noticeBox" style="margin-top:14px;"></div>
+  </div>
+
+  <div id="revList"></div>
+</main>
+
+<div class="viewer" id="viewer"><img id="viewerImg" alt="" /></div>
+
+<script>
+  let me = null;            // 로그인 사용자
+  let eligible = [];        // 후기 쓸 수 있는 주문
+  let rating = 5;
+  let photos = [];          // base64 목록
+  const RATE_TXT = { 5: "아주 만족해요 (5점)", 4: "만족해요 (4점)", 3: "보통이에요 (3점)", 2: "아쉬워요 (2점)", 1: "많이 아쉬워요 (1점)" };
+
+  // ---- 후기 목록 ----
+  async function loadList() {
+    try {
+      const res = await fetch("/api/reviews?limit=50");
+      const data = await res.json();
+      const s = data.summary || { avg: 0, count: 0 };
+      const full = Math.round(s.avg || 0);
+      document.getElementById("revHead").innerHTML =
+        `<div class="avg">${(s.avg || 0).toFixed(1)}</div>
+         <div><div class="stars">${"★".repeat(full)}${"☆".repeat(5 - full)}</div>
+         <div class="cnt">${s.count || 0}분이 후기를 남겨 주셨어요</div></div>`;
+      const list = data.reviews || [];
+      document.getElementById("revList").innerHTML = list.length ? list.map((r) => `
+        <div class="rv">
+          <div class="rv-top">
+            <span class="rv-star">${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}</span>
+            <span class="rv-name">${r.maskedName}</span>
+            ${r.orderName ? `<span class="rv-prod">${r.orderName}</span>` : ""}
+            <span class="rv-date">${r.createdAt ? new Date(r.createdAt).toLocaleDateString("ko-KR") : ""}</span>
+          </div>
+          <div class="rv-body">${(r.content || "").replace(/</g, "&lt;")}</div>
+          ${(r.images && r.images.length) ? `<div class="rv-imgs">${r.images.map((n) =>
+            `<img src="/review-images/${n}" onclick="zoom(this.src)" alt="후기 사진" />`).join("")}</div>` : ""}
+          ${r.reply ? `<div class="rv-reply">💬 <b>사장님</b> ${(r.reply || "").replace(/</g, "&lt;")}</div>` : ""}
+        </div>`).join("")
+        : `<div class="empty">아직 등록된 후기가 없습니다.<br>첫 번째 후기의 주인공이 되어 주세요!</div>`;
+    } catch (e) {
+      document.getElementById("revList").innerHTML = `<div class="empty">후기를 불러오지 못했습니다.</div>`;
+    }
+  }
+
+  function zoom(src) {
+    document.getElementById("viewerImg").src = src;
+    document.getElementById("viewer").classList.add("on");
+  }
+  document.getElementById("viewer").addEventListener("click", function () { this.classList.remove("on"); });
+
+  // ---- 로그인·작성 가능 주문 확인 ----
+  async function checkMe() {
+    try {
+      const res = await fetch("/api/auth/me");
+      const d = await res.json();
+      if (d.success) me = d.user;
+    } catch (e) {}
+    if (!me) {
+      document.getElementById("writeBtn").style.display = "none";
+      document.getElementById("noticeBox").innerHTML =
+        `<div class="notice">후기는 <b>결과지를 받아 보신 분</b>만 남길 수 있어요.<br>
+         <a href="/login.html">로그인</a> 후 이용해 주세요.</div>`;
+      return;
+    }
+    try {
+      const res = await fetch("/api/reviews/eligible");
+      const d = await res.json();
+      eligible = (d.success && d.orders) ? d.orders : [];
+    } catch (e) { eligible = []; }
+    if (!eligible.length) {
+      document.getElementById("writeBtn").style.display = "none";
+      document.getElementById("noticeBox").innerHTML =
+        `<div class="notice">지금은 작성할 수 있는 후기가 없어요.<br>
+         결과지를 받아 보신 뒤에 남겨 주실 수 있고, 한 주문당 한 번만 작성할 수 있습니다.<br>
+         <a href="/my.html">마이페이지에서 내 주문 보기</a></div>`;
+      return;
+    }
+    document.getElementById("fOrder").innerHTML = eligible.map((o) =>
+      `<option value="${o.orderId}">${o.orderName}</option>`).join("");
+  }
+
+  // ---- 별점 ----
+  document.getElementById("starsPick").addEventListener("click", (e) => {
+    const st = e.target.closest(".st"); if (!st) return;
+    rating = Number(st.dataset.n);
+    document.querySelectorAll("#starsPick .st").forEach((el, i) => el.classList.toggle("on", i < rating));
+    document.getElementById("rateLabel").textContent = RATE_TXT[rating];
+  });
+
+  // ---- 사진 첨부(브라우저에서 줄여서 업로드) ----
+  document.getElementById("fPhoto").addEventListener("change", async (e) => {
+    const files = Array.from(e.target.files || []);
+    for (const f of files) {
+      if (photos.length >= 3) { alert("사진은 최대 3장까지 올릴 수 있어요."); break; }
+      try { photos.push(await shrink(f)); } catch (err) { alert("사진을 불러오지 못했습니다."); }
+    }
+    e.target.value = "";
+    renderPhotos();
+  });
+  function shrink(file) {
+    return new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          const max = 1200;
+          let { width: w, height: h } = img;
+          if (w > max || h > max) { const r = Math.min(max / w, max / h); w = Math.round(w * r); h = Math.round(h * r); }
+          const c = document.createElement("canvas");
+          c.width = w; c.height = h;
+          c.getContext("2d").drawImage(img, 0, 0, w, h);
+          resolve(c.toDataURL("image/jpeg", 0.82));
+        };
+        img.onerror = reject;
+        img.src = fr.result;
+      };
+      fr.onerror = reject;
+      fr.readAsDataURL(file);
+    });
+  }
+  function renderPhotos() {
+    document.getElementById("photoList").innerHTML = photos.map((p, i) =>
+      `<div class="photo-item"><img src="${p}" alt="" />
+        <button class="del" onclick="removePhoto(${i})">×</button></div>`).join("");
+  }
+  function removePhoto(i) { photos.splice(i, 1); renderPhotos(); }
+
+  // ---- 폼 열기/닫기/등록 ----
+  document.getElementById("writeBtn").addEventListener("click", () => {
+    document.getElementById("formBox").classList.add("on");
+    document.getElementById("writeBtn").style.display = "none";
+  });
+  document.getElementById("cancelBtn").addEventListener("click", () => {
+    document.getElementById("formBox").classList.remove("on");
+    document.getElementById("writeBtn").style.display = "";
+  });
+  document.getElementById("submitBtn").addEventListener("click", async () => {
+    const orderId = document.getElementById("fOrder").value;
+    const content = document.getElementById("fContent").value.trim();
+    if (!orderId) { alert("상품을 선택해 주세요."); return; }
+    if (content.length < 5) { alert("후기를 5자 이상 적어 주세요."); return; }
+    const btn = document.getElementById("submitBtn");
+    btn.disabled = true; btn.textContent = "등록 중…";
+    try {
+      const res = await fetch("/api/reviews", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId, rating, content, images: photos }),
+      });
+      const d = await res.json();
+      if (!d.success) { alert(d.message || "등록에 실패했습니다."); return; }
+      alert("소중한 후기 감사합니다!");
+      photos = []; renderPhotos();
+      document.getElementById("fContent").value = "";
+      document.getElementById("formBox").classList.remove("on");
+      await checkMe();
+      await loadList();
+    } catch (e) { alert("오류: " + e.message); }
+    finally { btn.disabled = false; btn.textContent = "후기 등록하기"; }
+  });
+
+  loadList();
+  checkMe();
+</script>
+</body>
+</html>
