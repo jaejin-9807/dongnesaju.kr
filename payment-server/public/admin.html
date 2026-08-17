@@ -139,6 +139,7 @@
     <button class="view-tab active" data-view="orders">📋 주문 관리</button>
     <button class="view-tab" data-view="members">👥 회원 관리</button>
     <button class="view-tab" data-view="visits">📊 방문자 통계</button>
+    <button class="view-tab" data-view="reviews">⭐ 후기 관리</button>
   </div>
 
   <div id="ordersView">
@@ -199,6 +200,12 @@
     <div id="visitChart"></div>
     <div id="visitRegion"></div>
     <div id="visitTable"></div>
+  </div>
+
+  <div id="reviewsView" style="display:none;">
+    <div class="sub">고객이 남긴 후기입니다. 숨김 처리하면 홈 화면에 노출되지 않습니다.</div>
+    <div id="reviewSummary" style="display:flex;gap:12px;flex-wrap:wrap;margin:14px 0;"></div>
+    <div id="reviewList"></div>
   </div>
 </main>
 
@@ -605,11 +612,86 @@
     document.getElementById("ordersView").style.display = v === "orders" ? "" : "none";
     document.getElementById("membersView").style.display = v === "members" ? "" : "none";
     document.getElementById("visitsView").style.display = v === "visits" ? "" : "none";
+    document.getElementById("reviewsView").style.display = v === "reviews" ? "" : "none";
     document.getElementById("pageTitle").textContent =
-      v === "members" ? "회원 관리" : (v === "visits" ? "방문자 통계" : "주문 관리");
+      v === "members" ? "회원 관리" : (v === "visits" ? "방문자 통계" : (v === "reviews" ? "후기 관리" : "주문 관리"));
     if (v === "members") loadMembers();
     if (v === "visits") loadVisits();
+    if (v === "reviews") loadReviews();
   });
+
+  // ===== 후기 관리 탭 =====
+  async function loadReviews() {
+    const listEl = document.getElementById("reviewList");
+    listEl.innerHTML = `<div class="sub">불러오는 중…</div>`;
+    try {
+      const res = await fetch("/api/admin/reviews");
+      const data = await res.json();
+      if (!data.success) { listEl.innerHTML = `<div class="empty">${data.message || "불러오기 실패"}</div>`; return; }
+      const s = data.summary || { count: 0, avg: 0, dist: {} };
+      document.getElementById("reviewSummary").innerHTML =
+        card("평균 별점", s.avg || 0, "점", true, `${"★".repeat(Math.round(s.avg || 0))}${"☆".repeat(5 - Math.round(s.avg || 0))}`) +
+        card("공개 후기", s.count || 0, "개", false, "홈 화면에 소개되는 후기 수") +
+        card("전체 후기", (data.reviews || []).length, "개", false, "숨김 처리된 후기 포함");
+      const rv = data.reviews || [];
+      if (!rv.length) { listEl.innerHTML = `<div class="empty">아직 등록된 후기가 없습니다.</div>`; return; }
+      listEl.innerHTML = rv.map((r) => `
+        <div class="ord" style="${r.visible ? "" : "opacity:.55;"}">
+          <div class="ord-top">
+            <div class="ord-name">${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}
+              <span class="amt">${r.orderName || "-"}</span></div>
+            <span class="status-badge ${r.visible ? "status-done" : "status-pending"}">${r.visible ? "공개 중" : "숨김"}</span>
+          </div>
+          <div class="ord-meta">
+            ${r.customerName || "-"} (${r.maskedName}) · ${r.createdAt ? new Date(r.createdAt).toLocaleString("ko-KR") : "-"}
+          </div>
+          <div style="background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:11px 13px;margin:8px 0;font-size:13.5px;line-height:1.7;color:var(--ink);">
+            ${(r.content || "").replace(/</g, "&lt;")}
+          </div>
+          ${r.reply ? `<div style="background:#FBF4E2;border-radius:8px;padding:9px 12px;font-size:13px;margin-bottom:8px;">💬 <b>답글</b>: ${(r.reply || "").replace(/</g, "&lt;")}</div>` : ""}
+          <div class="action-btns">
+            <button class="action-btn ${r.visible ? "btn-reenable" : "btn-confirm"}" onclick="toggleReview('${r.reviewId}',${!r.visible})">${r.visible ? "숨기기" : "공개하기"}</button>
+            <button class="action-btn btn-email" onclick="replyReview('${r.reviewId}', ${JSON.stringify(r.reply || "").replace(/"/g, "&quot;")})">답글 달기</button>
+            <button class="action-btn btn-delete" onclick="deleteReview('${r.reviewId}')">삭제</button>
+          </div>
+        </div>`).join("");
+    } catch (e) {
+      listEl.innerHTML = `<div class="empty">오류: ${e.message}</div>`;
+    }
+  }
+  async function toggleReview(id, visible) {
+    try {
+      const res = await fetch(`/api/admin/reviews/${id}/visibility`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ visible }),
+      });
+      const d = await res.json();
+      if (!d.success) { alert(d.message || "변경 실패"); return; }
+      loadReviews();
+    } catch (e) { alert("오류: " + e.message); }
+  }
+  async function replyReview(id, prev) {
+    const reply = prompt("고객에게 남길 답글을 적어 주세요.", prev || "");
+    if (reply === null) return;
+    try {
+      const res = await fetch(`/api/admin/reviews/${id}/reply`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reply }),
+      });
+      const d = await res.json();
+      if (!d.success) { alert(d.message || "실패"); return; }
+      loadReviews();
+    } catch (e) { alert("오류: " + e.message); }
+  }
+  async function deleteReview(id) {
+    if (!confirm("이 후기를 삭제할까요? 되돌릴 수 없습니다.")) return;
+    try {
+      const res = await fetch(`/api/admin/reviews/${id}`, { method: "DELETE" });
+      const d = await res.json();
+      if (!d.success) { alert(d.message || "삭제 실패"); return; }
+      loadReviews();
+    } catch (e) { alert("오류: " + e.message); }
+  }
   document.getElementById("memberSearch").addEventListener("input", renderMembers);
 
   // ===== 방문자 통계 탭 =====

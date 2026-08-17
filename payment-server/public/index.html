@@ -326,6 +326,13 @@
       </div>
     </div>
   </div>
+
+  <!-- ============ 고객 후기 ============ -->
+  <div class="card" id="reviewSection" style="display:none;">
+    <h2>💬 이용하신 분들의 후기</h2>
+    <div id="reviewHead" class="review-head"></div>
+    <div id="reviewCards" class="review-cards"></div>
+  </div>
 </main>
 
 <footer>
@@ -557,6 +564,20 @@
   .voice-summary.on { display:block; }
   .voice-summary b { color:#8B2E2E; }
   .field-filled { border-color:var(--gold) !important; background:#FBF7EA !important; transition:background .3s; }
+  /* 고객 후기 */
+  .review-head { display:flex; align-items:center; gap:12px; margin:10px 0 16px; flex-wrap:wrap; }
+  .review-head .avg { font-size:32px; font-weight:800; color:var(--ink); line-height:1; }
+  .review-head .stars { color:#F5B301; font-size:19px; letter-spacing:2px; }
+  .review-head .cnt { font-size:13px; color:var(--text-sub); }
+  .review-cards { display:flex; flex-direction:column; gap:10px; }
+  .review-card { background:var(--paper-2); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  .review-card .rc-top { display:flex; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap; }
+  .review-card .rc-star { color:#F5B301; font-size:14px; letter-spacing:1px; }
+  .review-card .rc-name { font-size:13px; font-weight:800; color:var(--ink); }
+  .review-card .rc-prod { font-size:11.5px; color:var(--text-sub); background:var(--paper); border:1px solid var(--line); border-radius:20px; padding:2px 9px; }
+  .review-card .rc-date { font-size:11px; color:#B4AC98; margin-left:auto; }
+  .review-card .rc-body { font-size:13.5px; line-height:1.75; color:var(--ink); }
+  .review-card .rc-reply { margin-top:9px; background:#FBF4E2; border-radius:8px; padding:9px 12px; font-size:12.5px; line-height:1.65; color:var(--ink); }
   /* 녹음 사용법 안내 팝업 — 장년층 가독성을 위해 글자를 크게 */
   .vg-overlay { position:fixed; inset:0; background:rgba(20,24,34,.62); display:none; align-items:center; justify-content:center; z-index:9999; padding:16px; }
   .vg-overlay.on { display:flex; }
@@ -638,6 +659,33 @@
         alert("카톡문의 링크가 아직 설정되지 않았습니다.\n(운영자: index.html의 KAKAO_INQUIRY_URL 값을 오픈채팅 주소로 바꿔주세요)");
       });
     }
+  })();
+
+  // ---- 고객 후기 불러오기 (홈 화면 노출) ----
+  (async function loadReviews() {
+    try {
+      const res = await fetch("/api/reviews?limit=8");
+      const data = await res.json();
+      if (!data.success || !data.reviews || !data.reviews.length) return;
+      const s = data.summary || {};
+      const full = Math.round(s.avg || 0);
+      document.getElementById("reviewHead").innerHTML =
+        `<div class="avg">${(s.avg || 0).toFixed(1)}</div>
+         <div><div class="stars">${"★".repeat(full)}${"☆".repeat(5 - full)}</div>
+         <div class="cnt">${s.count || 0}분이 후기를 남겨 주셨어요</div></div>`;
+      document.getElementById("reviewCards").innerHTML = data.reviews.map((r) => `
+        <div class="review-card">
+          <div class="rc-top">
+            <span class="rc-star">${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}</span>
+            <span class="rc-name">${r.maskedName}</span>
+            ${r.orderName ? `<span class="rc-prod">${r.orderName}</span>` : ""}
+            <span class="rc-date">${r.createdAt ? new Date(r.createdAt).toLocaleDateString("ko-KR") : ""}</span>
+          </div>
+          <div class="rc-body">${(r.content || "").replace(/</g, "&lt;")}</div>
+          ${r.reply ? `<div class="rc-reply">💬 <b>사장님</b> ${(r.reply || "").replace(/</g, "&lt;")}</div>` : ""}
+        </div>`).join("");
+      document.getElementById("reviewSection").style.display = "";
+    } catch (e) { /* 후기가 없거나 실패하면 섹션을 숨긴 채 둔다 */ }
   })();
 
   const ZODIAC_TABLE = ["쥐", "소", "호랑이", "토끼", "용", "뱀", "말", "양", "원숭이", "닭", "개", "돼지"];

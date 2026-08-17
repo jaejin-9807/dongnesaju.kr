@@ -22,6 +22,7 @@ const adminAuthRoutes = require("./routes/adminAuth");
 const orderStore = require("./orderStore");
 const userStore = require("./userStore");
 const visitStore = require("./visitStore");
+const reviewStore = require("./reviewStore");
 const { calculateSaju, generatePdf, probeRenderEngines } = require("./sajuEngine");
 const { fulfillOrder, PDF_OUTPUT_DIR } = require("./fulfillOrder");
 const { sendResultToCustomer, sendResultSmsToCustomer } = require("./mailer");
@@ -582,6 +583,85 @@ app.post("/api/admin/orders/:orderId/send-sms", requireAdmin, async (req, res) =
     console.error("고객 문자 발송 오류:", e.message);
     res.status(500).json({ success: false, message: "문자 발송 중 오류가 발생했습니다: " + e.message });
   }
+});
+
+// ---------------------------------------------------------------
+// 후기(리뷰)
+// ---------------------------------------------------------------
+// 홈 화면 노출용 — 로그인 없이 조회 가능(개인정보는 가려서 내려감)
+app.get("/api/reviews", (req, res) => {
+  res.json({
+    success: true,
+    summary: reviewStore.summary(),
+    reviews: reviewStore.listPublic(Number(req.query.limit) || 30),
+  });
+});
+
+// 고객: 내 주문에 후기 남기기 (결과지를 받아 본 주문만)
+app.post("/api/reviews", requireCustomer, (req, res) => {
+  const { orderId, rating, content } = req.body || {};
+  if (!orderId) return res.status(400).json({ success: false, message: "주문 정보가 필요합니다." });
+  if (!content || String(content).trim().length < 5) {
+    return res.status(400).json({ success: false, message: "후기를 5자 이상 적어 주세요." });
+  }
+  const order = orderStore.getOrder(orderId);
+  if (!order) return res.status(404).json({ success: false, message: "주문을 찾을 수 없습니다." });
+  if (order.userId !== req.currentUser.userId) {
+    return res.status(403).json({ success: false, message: "본인 주문에만 후기를 남길 수 있습니다." });
+  }
+  if (!order.pdfPath || !order.paymentConfirmed) {
+    return res.status(400).json({ success: false, message: "결과지를 받아 보신 뒤에 후기를 남길 수 있어요." });
+  }
+  const r = reviewStore.createReview({
+    userId: req.currentUser.userId,
+    orderId,
+    orderName: order.orderName,
+    customerName: order.customerName || req.currentUser.name,
+    rating,
+    content,
+  });
+  if (r.error) return res.status(400).json({ success: false, message: r.error });
+  // 사장님에게 카카오톡 알림
+  kakaoNotify.notify(
+    `⭐ [동네사주카페] 새 후기 도착\n` +
+    `· 상품: ${order.orderName}\n` +
+    `· 별점: ${"★".repeat(r.review.rating)}${"☆".repeat(5 - r.review.rating)}\n` +
+    `· 내용: ${String(content).slice(0, 80)}`
+  );
+  res.json({ success: true, review: r.review });
+});
+
+// 고객: 내가 쓴 후기(마이페이지에서 중복 작성 방지용)
+app.get("/api/reviews/mine", requireCustomer, (req, res) => {
+  res.json({ success: true, reviews: reviewStore.listByUser(req.currentUser.userId) });
+});
+
+// 관리자: 전체 후기 목록
+app.get("/api/admin/reviews", requireAdmin, (req, res) => {
+  res.json({ success: true, summary: reviewStore.summary(), reviews: reviewStore.listAll() });
+});
+
+// 관리자: 공개/숨김 전환
+app.post("/api/admin/reviews/:reviewId/visibility", requireAdmin, (req, res) => {
+  const updated = reviewStore.updateReview(req.params.reviewId, { visible: !!req.body.visible });
+  if (!updated) return res.status(404).json({ success: false, message: "후기를 찾을 수 없습니다." });
+  res.json({ success: true, review: updated });
+});
+
+// 관리자: 답글 달기
+app.post("/api/admin/reviews/:reviewId/reply", requireAdmin, (req, res) => {
+  const updated = reviewStore.updateReview(req.params.reviewId, {
+    reply: String((req.body && req.body.reply) || "").slice(0, 500),
+  });
+  if (!updated) return res.status(404).json({ success: false, message: "후기를 찾을 수 없습니다." });
+  res.json({ success: true, review: updated });
+});
+
+// 관리자: 후기 삭제
+app.delete("/api/admin/reviews/:reviewId", requireAdmin, (req, res) => {
+  const ok = reviewStore.deleteReview(req.params.reviewId);
+  if (!ok) return res.status(404).json({ success: false, message: "후기를 찾을 수 없습니다." });
+  res.json({ success: true });
 });
 
 // ---------------------------------------------------------------
