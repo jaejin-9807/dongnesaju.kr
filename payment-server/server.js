@@ -408,9 +408,27 @@ app.get("/api/orders/:orderId/teaser", requireCustomer, (req, res) => {
   const yong = r.yongsin || {};
   const gyeok = r.gyeokguk || {};
   const interp = r.interpretation || {};
+  const wolunAll = r.wolun || [];
+
   // 이번 달 흐름
   const nowMonth = new Date().getMonth() + 1;
-  const wolun = (r.wolun || []).find((w) => Number(w.month) === nowMonth) || (r.wolun || [])[0] || null;
+  const wolun = wolunAll.find((w) => Number(w.month) === nowMonth) || wolunAll[0] || null;
+  const thisMonthText = String(interp[`${nowMonth}월운세`] || "");
+
+  // 올해 좋은 달 / 조심할 달 (용신·기신 기준)
+  const good = new Set([yong.yongsin, yong.huisin].filter(Boolean));
+  const bad = new Set([yong.gisin, yong.gusin].filter(Boolean));
+  const goodMonths = wolunAll.filter((w) => good.has(w.oheng)).map((w) => w.month);
+  const badMonths = wolunAll.filter((w) => bad.has(w.oheng)).map((w) => w.month);
+
+  // 문단 단위로 잘라 주는 도우미(맛보기 분량 조절)
+  const cut = (txt, n) => {
+    const s = String(txt || "").trim();
+    if (!s) return "";
+    const parts = s.split(/(?<=다\.)\s+/).filter(Boolean);
+    return parts.slice(0, n).join(" ");
+  };
+
   res.json({
     success: true,
     teaser: {
@@ -420,13 +438,32 @@ app.get("/api/orders/:orderId/teaser", requireCustomer, (req, res) => {
       pillars: r.pillars || {},
       ilgan: r.ilgan || "",
       gyeokguk: gyeok.name || "",
+      gyeokgukDesc: cut(gyeok.description || interp["격국해설"], 2),
+      sipseong: r.sipseong || {},
+      unseong12: r.unseong12 || {},
+      sinsal: Object.keys(r.sinsal || {}),
       ohengDistribution: r.ohengDistribution || {},
       ohengMostCommon: r.ohengMostCommon || "",
       ohengMissing: r.ohengMissing || [],
       yongsin: yong.yongsin || "",
-      // 총평 한 문장(맛보기의 핵심)
-      summary: String(interp["사주원국해설"] || interp.ohengBasic || "").split(/(?<=다\.)\s/)[0] || "",
+      huisin: yong.huisin || "",
+      isStrong: !!yong.is_strong,
+
+      // ── 1장: 명식과 다섯 기운 ──
+      summary: cut(interp["사주원국해설"] || interp.ohengBasic, 2),
+      ohengText: cut(interp["오행해설"], 3),
+      missingText: cut((interp.ohengMissingTexts || [])[0], 2),
+
+      // ── 2장: 타고난 성격과 기질 ──
+      personality: cut(interp["타고난성향"], 3),
+      sipseongText: cut(interp["십성해설"], 2),
+      yongsinText: cut(interp["용신해설"], 2),
+
+      // ── 3장: 이번 달 나의 흐름 ──
       monthKeyword: wolun ? { month: wolun.month, ganji: wolun.ganji, keyword: wolun.keyword } : null,
+      thisMonthText: cut(thisMonthText, 3),
+      goodMonths, badMonths,
+      gaeunbeop: cut((interp.gaeunbeop || [])[0], 2),
     },
   });
 });

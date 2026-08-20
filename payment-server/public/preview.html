@@ -42,6 +42,29 @@
   /* 총평 */
   .summary { background: #FBF4E2; border-left: 3px solid var(--gold); border-radius: 8px;
     padding: 14px 16px; font-size: 14.5px; line-height: 1.85; }
+  /* 장 구분 */
+  .chap { display: flex; align-items: center; gap: 10px; margin: 26px 0 12px; }
+  .chap::before { content: ""; flex: 0 0 3px; height: 19px; background: var(--seal); border-radius: 2px; }
+  .chap { font-size: 16px; font-weight: 800; color: var(--seal); letter-spacing: -0.2px; }
+  /* 본문 문단 */
+  .para { font-size: 14px; line-height: 1.95; margin-top: 12px; color: var(--ink); }
+  .tip { margin-top: 12px; background: #F2F6F0; border: 1px solid #D7E3D3; border-radius: 9px;
+    padding: 12px 14px; font-size: 13.5px; line-height: 1.8; }
+  /* 키-값 줄 */
+  .kv { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--line); font-size: 13.5px; }
+  .kv:last-of-type { border-bottom: none; }
+  .kv .k { flex: 0 0 118px; color: var(--text-sub); font-weight: 700; }
+  .kv .v { font-weight: 800; color: var(--ink); }
+  /* 이번 달 */
+  .month-badge { display: inline-block; background: var(--seal); color: #fff; font-size: 13.5px;
+    font-weight: 800; padding: 7px 14px; border-radius: 20px; }
+  .months { display: flex; gap: 10px; flex-wrap: wrap; }
+  .m-box { flex: 1; min-width: 150px; border-radius: 10px; padding: 13px 14px; }
+  .m-box.good { background: #F2F6F0; border: 1px solid #D7E3D3; }
+  .m-box.bad { background: #FBF1EF; border: 1px solid #EDD5D1; }
+  .m-box .m-t { font-size: 12.5px; font-weight: 800; margin-bottom: 6px; }
+  .m-box .m-v { font-size: 16px; font-weight: 800; color: var(--ink); margin-bottom: 6px; }
+  .m-box .m-d { font-size: 11.5px; color: var(--text-sub); line-height: 1.6; }
   /* 잠긴 영역 */
   .locked-wrap { position: relative; margin-top: 14px; }
   .locked { filter: blur(3px); user-select: none; pointer-events: none; }
@@ -83,6 +106,7 @@
 
 <script>
   const OHENG_COLOR = { 목: "#4E7A51", 화: "#B4453C", 토: "#B08A3E", 금: "#8A8F98", 수: "#3E5C7E" };
+  const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const params = new URLSearchParams(location.search);
   const orderId = params.get("orderId");
 
@@ -127,6 +151,8 @@
           ${b.hour != null ? ` · ${String(b.hour).padStart(2, "0")}시` : ""}</div>
       </div>
 
+      <div class="chap">1장 · 나의 사주 명식과 다섯 기운</div>
+
       <div class="card">
         <h2>내 사주 명식</h2>
         <table class="pil">
@@ -135,6 +161,7 @@
           <tr><td>지지</td><td class="han">${cell("시주",1)}</td><td class="han">${cell("일주",1)}</td><td class="han">${cell("월주",1)}</td><td class="han">${cell("연주",1)}</td></tr>
         </table>
         <div class="legend">나를 상징하는 글자(일간)는 <b>${t.ilgan}</b> 입니다.</div>
+        ${t.summary ? `<div class="summary" style="margin-top:12px;">${esc(t.summary)}</div>` : ""}
       </div>
 
       <div class="card">
@@ -148,30 +175,77 @@
         ${pentagon(dist)}
         <div class="legend">가장 강한 기운 <b>${t.ohengMostCommon || "-"}</b>
           ${(t.ohengMissing && t.ohengMissing.length) ? ` · 부족한 기운 <b>${t.ohengMissing.join(", ")}</b>` : ""}</div>
+        ${t.ohengText ? `<p class="para">${esc(t.ohengText)}</p>` : ""}
+        ${t.missingText ? `<div class="tip"><b>💡 부족한 기운 채우기</b><br>${esc(t.missingText)}</div>` : ""}
+      </div>
+
+      <div class="chap">2장 · 타고난 성격과 기질</div>
+
+      <div class="card">
+        <h2>내 성격의 뿌리</h2>
+        ${t.gyeokguk ? `<div class="kv"><span class="k">타고난 성향의 틀</span><span class="v">${esc(t.gyeokguk)}</span></div>` : ""}
+        <div class="kv"><span class="k">기운의 강약</span><span class="v">${t.isStrong ? "신강 — 자기 힘이 강한 편" : "신약 — 도움을 받을 때 힘이 나는 편"}</span></div>
+        <div class="kv"><span class="k">나에게 필요한 기운</span><span class="v">${esc(t.yongsin || "-")}${t.huisin ? ` · ${esc(t.huisin)}` : ""}</span></div>
+        ${t.personality ? `<p class="para">${esc(t.personality)}</p>` : ""}
+        ${t.gyeokgukDesc ? `<p class="para">${esc(t.gyeokgukDesc)}</p>` : ""}
       </div>
 
       <div class="card">
-        <h2>총평 한 문장</h2>
-        <div class="summary">${(t.summary || "").replace(/</g, "&lt;") ||
-          `${t.name} 님은 ${t.ohengMostCommon} 기운이 중심을 이루는 사주입니다.`}</div>
+        <h2>내 안의 십성 — 어떤 기운을 타고났나</h2>
+        <table class="pil">
+          <tr><th>연주</th><th>월주</th><th>일주</th><th>시주</th></tr>
+          <tr>
+            <td>${esc((t.sipseong||{})["연간"] || "-")}<br><span style="font-size:11px;color:#8A8272;">${esc((t.sipseong||{})["연지"] || "")}</span></td>
+            <td>${esc((t.sipseong||{})["월간"] || "-")}<br><span style="font-size:11px;color:#8A8272;">${esc((t.sipseong||{})["월지"] || "")}</span></td>
+            <td>나 자신<br><span style="font-size:11px;color:#8A8272;">${esc((t.sipseong||{})["일지"] || "")}</span></td>
+            <td>${esc((t.sipseong||{})["시간"] || "-")}<br><span style="font-size:11px;color:#8A8272;">${esc((t.sipseong||{})["시지"] || "")}</span></td>
+          </tr>
+        </table>
+        ${t.sipseongText ? `<p class="para">${esc(t.sipseongText)}</p>` : ""}
+        ${(t.sinsal && t.sinsal.length) ? `<div class="tip"><b>✨ 내 사주의 특별한 기운</b><br>${esc(t.sinsal.slice(0,3).join(", "))}</div>` : ""}
       </div>
 
-      <!-- 여기서부터 잠금 -->
+      <div class="chap">3장 · 이번 달 나의 흐름</div>
+
+      <div class="card">
+        <h2>${t.monthKeyword ? `${t.monthKeyword.month}월, 지금 나에게 오는 기운` : "이번 달의 흐름"}</h2>
+        ${t.monthKeyword ? `<div class="month-badge">${esc(t.monthKeyword.keyword || "")}</div>` : ""}
+        ${t.thisMonthText ? `<p class="para">${esc(t.thisMonthText)}</p>` : ""}
+      </div>
+
+      <div class="card">
+        <h2>올해 좋은 달 · 조심할 달</h2>
+        <div class="months">
+          <div class="m-box good">
+            <div class="m-t">🌤️ 기운이 밝은 달</div>
+            <div class="m-v">${(t.goodMonths||[]).length ? t.goodMonths.map(m=>m+"월").join(" · ") : "고르게 무난합니다"}</div>
+            <div class="m-d">좋은 일·모임·중요한 결정을 이 시기에 맞추면 힘을 받습니다.</div>
+          </div>
+          <div class="m-box bad">
+            <div class="m-t">🌧️ 조심할 달</div>
+            <div class="m-v">${(t.badMonths||[]).length ? t.badMonths.map(m=>m+"월").join(" · ") : "특별히 나쁜 달은 없습니다"}</div>
+            <div class="m-d">큰 결정과 무리한 일은 한 박자 늦추고 건강을 살피세요.</div>
+          </div>
+        </div>
+        ${t.gaeunbeop ? `<div class="tip"><b>🍀 지금 실천하면 좋은 것</b><br>${esc(t.gaeunbeop)}</div>` : ""}
+      </div>
+
+      <!-- 4장부터 잠금 -->
+      <div class="chap">4장 · 재물운과 경제 흐름</div>
       <div class="locked-wrap">
         <div class="locked">
           <div class="card">
-            <h2>타고난 성격과 기질</h2>
-            <p>${t.name} 님은 ${t.ilgan} 일간에 ${t.ohengMostCommon} 기운이 강해, 겉으로 보이는 모습보다 속이 훨씬 단단합니다. 특히 사람들과의 관계에서 드러나는 특유의 태도가 있는데, 이는 타고난 기운의 짜임에서 비롯된 것으로…</p>
-            <p>격국은 ${t.gyeokguk || "—"}으로 판정되며, 이 틀은 인생 전반의 방향을 결정짓는 큰 축이 됩니다. 이 짜임을 가진 분들은 대체로…</p>
+            <h2>타고난 재물의 그릇</h2>
+            <p>${t.name} 님의 재물운을 보면, 돈이 모이는 자리와 새어 나가는 자리가 뚜렷하게 갈립니다. ${t.ohengMostCommon} 기운이 강한 만큼 재물을 다루는 방식에도 특유의 결이 있는데, 이는 …</p>
+            <p>특히 올해는 ${(t.goodMonths||[])[0] || "특정"}월 무렵 수입이 늘어날 여지가 있으나, 반대로 지출이 커지기 쉬운 시기도 함께 있어 …</p>
           </div>
           <div class="card">
-            <h2>재물운과 돈이 들어오는 시기</h2>
-            <p>재물의 그릇과 흐름을 보면, ${t.name} 님께 돈이 모이는 시기와 새어 나가는 시기가 뚜렷하게 갈립니다. 특히 올해는…</p>
-            <p>투자와 계약에서 조심해야 할 달이 따로 있으며, 이 시기를 피하는 것만으로도…</p>
+            <h2>인연·가정운 — 관계의 결과 시기</h2>
+            <p>관계에서 드러나는 ${t.name} 님의 태도는 일간 ${t.ilgan}의 성정에서 비롯됩니다. 잘 맞는 상대의 특징과 부딪히기 쉬운 유형이 명확히 나뉘며 …</p>
           </div>
           <div class="card">
             <h2>앞으로 10년의 큰 흐름(대운)</h2>
-            <p>지금 지나고 계신 대운과 다음 대운의 성격이 크게 달라집니다. 전환점은…</p>
+            <p>지금 지나고 계신 대운과 다음 대운의 성격이 크게 달라집니다. 인생의 전환점이 되는 나이는 …</p>
           </div>
         </div>
         <div class="fade"></div>
@@ -179,16 +253,17 @@
 
       <div class="cta">
         <div class="lock">🔒</div>
-        <h3>${t.name} 님의 이야기는<br>여기서부터가 진짜입니다</h3>
-        <p>맛보기에서는 사주의 겉모습만 보여드렸어요.<br>
-           나머지 이야기는 정식 풀이에서 자세히 전해 드립니다.</p>
+        <h3>여기까지가 <b>3장</b>이었어요.<br>${t.name} 님의 진짜 이야기는 4장부터입니다</h3>
+        <p>지금까지는 사주의 <b>바탕</b>을 보여드렸어요.<br>
+           살면서 정말 궁금한 것들은 정식 풀이에 담겨 있습니다.</p>
         <div class="list">
-          🔮 타고난 <b>성격과 기질</b>, 강점과 보완할 점<br>
           💰 <b>재물운</b> — 돈이 들어오는 달, 지켜야 할 달<br>
-          💞 <b>인연·가정운</b> — 관계의 결과 시기<br>
+          💞 <b>인연·가정운</b> — 잘 맞는 사람과 인연의 시기<br>
+          💼 <b>직업·성취운</b> — 나에게 맞는 일과 승부처<br>
           🩺 <b>건강운</b> — 타고난 체질과 조심할 시기<br>
-          📈 <b>앞으로 10년</b> 대운의 흐름과 전환점<br>
-          🗓️ <b>2026년 열두 달</b> 월별 운세
+          🤝 <b>귀인운</b> — 나를 돕는 사람은 누구인가<br>
+          📈 <b>앞으로 10년 대운</b> — 인생의 전환점<br>
+          🗓️ <b>열두 달 월별 운세</b> 전체
         </div>
         <a class="btn btn-main" href="/#products">🔮 정식 사주풀이 보러 가기</a>
         <a class="btn btn-sub" href="/#products">🎯 궁금한 것만 5,000원부터</a>
