@@ -116,6 +116,23 @@ def _build_charts(data, tmp_dir):
     charts.make_radar(rad["categories"], rad["scores"], _("radar.png"))
     cp["radar"] = uri("radar.png")
 
+    # 분야별 비교 막대 + 파트별 게이지 (직관적으로 감을 잡게 하는 정량 도표)
+    charts.make_compare_bars(rad["categories"], rad["scores"], _("cmp.png"),
+                             title="분야별 운세 지수", highlight=rad["scores"].index(max(rad["scores"])))
+    cp["compare_bars"] = uri("cmp.png")
+    _GA = {"재물": ("jaemul", "재물운 지수", "돈이 모이고 흩어지는 힘"),
+           "직업": ("jikeop", "직업·성취 지수", "일과 자리에서 발휘되는 힘"),
+           "연애": ("yeonae", "인연·관계 지수", "사람과 맺어지는 힘"),
+           "건강": ("health", "건강 지수", "타고난 체력과 회복력"),
+           "귀인": ("gwiin", "귀인 지수", "나를 돕는 사람의 힘")}
+    for cat, sc in zip(rad["categories"], rad["scores"]):
+        key, title, sub = _GA.get(cat, (None, None, None))
+        if not key:
+            continue
+        fn = f"gauge_{key}.png"
+        charts.make_score_gauge(sc, title, _(fn), sub)
+        cp[f"gauge_{key}"] = uri(fn)
+
     if data.get("gunghap"):
         charts.make_gunghap_gauge(data["gunghap"].get("score", 0), data["gunghap"].get("grade", "중"), _("gunghap.png"))
         cp["gunghap_gauge"] = uri("gunghap.png")

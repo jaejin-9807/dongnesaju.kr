@@ -228,6 +228,19 @@ def _build_group_prompt(data: dict, group: dict) -> str:
                 pz_lines.append(f"- 이름 한자: {cs}")
         if prof.get("total_strokes"):
             pz_lines.append(f"- 이름 총획: {prof['total_strokes']}획 (수리오행 {prof['stroke_oheng']})")
+        # 혼인 여부 — 기혼자에게 '새 인연' 서술이 나가지 않도록 못 박는다
+        _mar = str(_meta.get("marital") or "").strip()
+        if _mar == "기혼":
+            pz_lines.append(
+                "- 혼인 여부: 기혼(결혼한 상태). ★연애·인연 관련 항목은 반드시 '배우자·가정' 중심으로 쓰세요. "
+                "'새로운 인연이 찾아온다', '좋은 사람을 만나게 된다', '소개팅·만남에 마음을 열어라' 같은 "
+                "미혼 대상 표현은 절대 쓰지 마세요. 대신 배우자와의 관계 개선, 가정의 화목, 자녀 문제로 서술하세요."
+            )
+        elif _mar == "미혼":
+            pz_lines.append(
+                "- 혼인 여부: 미혼. 연애·인연 항목은 새로운 만남과 인연의 시기를 중심으로 쓰되, "
+                "결혼을 강요하는 어조는 피하세요."
+            )
         if _pz.get("V"):
             mt = _pz["V"].metaphor()
             pz_lines.append(

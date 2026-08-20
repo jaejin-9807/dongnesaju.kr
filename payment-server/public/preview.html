@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>내 사주 맛보기 · 동네사주카페</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --ink: #1C2333; --gold: #C9A24B; --gold-light: #E8D4A0; --seal: #A02B23;
+    --paper: #F7F3E8; --paper-2: #FDFBF5; --text-sub: #6B6252; --line: #E3D9C0;
+  }
+  body { font-family: "Pretendard", "Noto Sans KR", "맑은 고딕", sans-serif;
+    background: var(--paper); color: var(--ink); }
+  header { background: var(--ink); color: var(--gold-light); padding: 15px 20px;
+    border-bottom: 3px solid var(--gold); display: flex; align-items: center; justify-content: space-between; }
+  header a { color: var(--gold-light); text-decoration: none; font-weight: 800; font-size: 16px; }
+  header .nav a { font-size: 13px; margin-left: 12px; font-weight: 700; }
+  main { max-width: 640px; margin: 0 auto; padding: 24px 16px 60px; }
+  .title { text-align: center; margin-bottom: 20px; }
+  .title .badge { display: inline-block; background: var(--seal); color: #fff; font-size: 11.5px;
+    font-weight: 800; padding: 4px 12px; border-radius: 20px; margin-bottom: 10px; }
+  .title h1 { font-size: 23px; font-weight: 800; }
+  .title .who { font-size: 13.5px; color: var(--text-sub); margin-top: 6px; line-height: 1.6; }
+  .card { background: var(--paper-2); border: 1px solid var(--line); border-radius: 12px;
+    padding: 18px; margin-bottom: 14px; }
+  .card h2 { font-size: 15px; font-weight: 800; margin-bottom: 12px; color: var(--seal); }
+  /* 명식표 */
+  table.pil { width: 100%; border-collapse: collapse; }
+  table.pil th, table.pil td { border: 1px solid var(--line); padding: 8px 4px; text-align: center; font-size: 13px; }
+  table.pil th { background: #F2ECDC; font-weight: 800; }
+  table.pil td.han { font-size: 19px; font-weight: 800; color: var(--ink); }
+  /* 오행 막대 */
+  .oh-row { display: flex; align-items: center; gap: 9px; margin-bottom: 7px; }
+  .oh-row .nm { flex: 0 0 34px; font-size: 13px; font-weight: 800; }
+  .oh-row .bar { flex: 1; background: #EFE7D4; border-radius: 6px; height: 20px; overflow: hidden; }
+  .oh-row .fill { height: 100%; border-radius: 6px; transition: width .8s ease; }
+  .oh-row .val { flex: 0 0 34px; text-align: right; font-size: 12.5px; color: var(--text-sub); }
+  /* 오각형 */
+  .penta { display: block; margin: 4px auto 0; }
+  .legend { text-align: center; font-size: 12px; color: var(--text-sub); margin-top: 6px; line-height: 1.6; }
+  /* 총평 */
+  .summary { background: #FBF4E2; border-left: 3px solid var(--gold); border-radius: 8px;
+    padding: 14px 16px; font-size: 14.5px; line-height: 1.85; }
+  /* 잠긴 영역 */
+  .locked-wrap { position: relative; margin-top: 14px; }
+  .locked { filter: blur(3px); user-select: none; pointer-events: none; }
+  .locked .card { margin-bottom: 12px; }
+  .locked p { font-size: 14px; line-height: 1.9; color: var(--ink); margin-bottom: 9px; }
+  .fade { position: absolute; left: 0; right: 0; bottom: 0; height: 100%;
+    background: linear-gradient(180deg, rgba(247,243,232,0) 0%, rgba(247,243,232,.55) 32%, rgba(247,243,232,.95) 62%, var(--paper) 88%); }
+  /* 유도 박스 */
+  .cta { position: relative; margin-top: -30px; background: var(--paper-2);
+    border: 2px solid var(--gold); border-radius: 14px; padding: 24px 20px; text-align: center;
+    box-shadow: 0 10px 30px rgba(28,35,51,.10); }
+  .cta .lock { font-size: 30px; }
+  .cta h3 { font-size: 18px; font-weight: 800; margin: 8px 0 10px; line-height: 1.5; }
+  .cta p { font-size: 14px; color: var(--text-sub); line-height: 1.8; margin-bottom: 16px; }
+  .cta .list { text-align: left; background: var(--paper); border-radius: 10px; padding: 14px 16px;
+    margin-bottom: 18px; font-size: 13.5px; line-height: 2; }
+  .cta .list b { color: var(--seal); }
+  .btn { display: block; width: 100%; padding: 15px; border: none; border-radius: 10px;
+    font-size: 15.5px; font-weight: 800; font-family: inherit; cursor: pointer; text-decoration: none; margin-bottom: 9px; }
+  .btn-main { background: var(--ink); color: var(--gold-light); }
+  .btn-sub { background: var(--gold); color: var(--ink); }
+  .btn-ghost { background: transparent; color: var(--text-sub); font-size: 13.5px; font-weight: 700; padding: 10px; }
+  .loading { text-align: center; padding: 60px 20px; color: var(--text-sub); }
+</style>
+</head>
+<body>
+
+<header>
+  <a href="/">易 동네사주카페</a>
+  <div class="nav">
+    <a href="/my.html">마이페이지</a>
+    <a href="/">홈</a>
+  </div>
+</header>
+
+<main id="root">
+  <div class="loading">사주를 불러오는 중이에요…</div>
+</main>
+
+<script>
+  const OHENG_COLOR = { 목: "#4E7A51", 화: "#B4453C", 토: "#B08A3E", 금: "#8A8F98", 수: "#3E5C7E" };
+  const params = new URLSearchParams(location.search);
+  const orderId = params.get("orderId");
+
+  function pentagon(dist) {
+    const order = ["목", "화", "토", "금", "수"];
+    const max = Math.max(1, ...order.map((k) => dist[k] || 0));
+    const cx = 130, cy = 122, R = 88;
+    const pts = order.map((k, i) => {
+      const a = -Math.PI / 2 + (i * 2 * Math.PI) / 5;
+      const r = R * (0.22 + 0.78 * ((dist[k] || 0) / max));
+      return { k, v: dist[k] || 0, x: cx + r * Math.cos(a), y: cy + r * Math.sin(a),
+               ox: cx + R * Math.cos(a), oy: cy + R * Math.sin(a) };
+    });
+    const outer = pts.map((p) => `${p.ox},${p.oy}`).join(" ");
+    const inner = pts.map((p) => `${p.x},${p.y}`).join(" ");
+    return `<svg class="penta" width="260" height="250" viewBox="0 0 260 250">
+      <polygon points="${outer}" fill="none" stroke="#DED3B8" stroke-width="1.4"/>
+      ${pts.map((p) => `<line x1="${cx}" y1="${cy}" x2="${p.ox}" y2="${p.oy}" stroke="#EAE1CB" stroke-width="1"/>`).join("")}
+      <polygon points="${inner}" fill="rgba(201,162,75,.30)" stroke="#C9A24B" stroke-width="2.2"/>
+      ${pts.map((p) => `<circle cx="${p.x}" cy="${p.y}" r="4.5" fill="${OHENG_COLOR[p.k]}"/>`).join("")}
+      ${pts.map((p) => {
+        const lx = cx + (R + 22) * (p.ox - cx) / R, ly = cy + (R + 22) * (p.oy - cy) / R;
+        return `<text x="${lx}" y="${ly}" text-anchor="middle" dominant-baseline="middle"
+          font-size="13" font-weight="800" fill="${OHENG_COLOR[p.k]}">${p.k} ${p.v}</text>`;
+      }).join("")}
+    </svg>`;
+  }
+
+  function render(t) {
+    const dist = t.ohengDistribution || {};
+    const order = ["목", "화", "토", "금", "수"];
+    const maxV = Math.max(1, ...order.map((k) => dist[k] || 0));
+    const b = t.birth || {};
+    const pil = t.pillars || {};
+    const cell = (k, i) => ((pil[k] || ["", ""])[i] || "");
+
+    document.getElementById("root").innerHTML = `
+      <div class="title">
+        <div class="badge">무료 맛보기</div>
+        <h1>${t.name} 님의 사주 한눈에 보기</h1>
+        <div class="who">${b.year || ""}년 ${b.month || ""}월 ${b.day || ""}일 (${t.calendarType})
+          ${b.hour != null ? ` · ${String(b.hour).padStart(2, "0")}시` : ""}</div>
+      </div>
+
+      <div class="card">
+        <h2>내 사주 명식</h2>
+        <table class="pil">
+          <tr><th>구분</th><th>시주</th><th>일주</th><th>월주</th><th>연주</th></tr>
+          <tr><td>천간</td><td class="han">${cell("시주",0)}</td><td class="han">${cell("일주",0)}</td><td class="han">${cell("월주",0)}</td><td class="han">${cell("연주",0)}</td></tr>
+          <tr><td>지지</td><td class="han">${cell("시주",1)}</td><td class="han">${cell("일주",1)}</td><td class="han">${cell("월주",1)}</td><td class="han">${cell("연주",1)}</td></tr>
+        </table>
+        <div class="legend">나를 상징하는 글자(일간)는 <b>${t.ilgan}</b> 입니다.</div>
+      </div>
+
+      <div class="card">
+        <h2>다섯 기운(오행) 분포</h2>
+        ${order.map((k) => `
+          <div class="oh-row">
+            <div class="nm" style="color:${OHENG_COLOR[k]}">${k}</div>
+            <div class="bar"><div class="fill" style="width:${Math.round(((dist[k]||0)/maxV)*100)}%;background:${OHENG_COLOR[k]}"></div></div>
+            <div class="val">${dist[k] || 0}개</div>
+          </div>`).join("")}
+        ${pentagon(dist)}
+        <div class="legend">가장 강한 기운 <b>${t.ohengMostCommon || "-"}</b>
+          ${(t.ohengMissing && t.ohengMissing.length) ? ` · 부족한 기운 <b>${t.ohengMissing.join(", ")}</b>` : ""}</div>
+      </div>
+
+      <div class="card">
+        <h2>총평 한 문장</h2>
+        <div class="summary">${(t.summary || "").replace(/</g, "&lt;") ||
+          `${t.name} 님은 ${t.ohengMostCommon} 기운이 중심을 이루는 사주입니다.`}</div>
+      </div>
+
+      <!-- 여기서부터 잠금 -->
+      <div class="locked-wrap">
+        <div class="locked">
+          <div class="card">
+            <h2>타고난 성격과 기질</h2>
+            <p>${t.name} 님은 ${t.ilgan} 일간에 ${t.ohengMostCommon} 기운이 강해, 겉으로 보이는 모습보다 속이 훨씬 단단합니다. 특히 사람들과의 관계에서 드러나는 특유의 태도가 있는데, 이는 타고난 기운의 짜임에서 비롯된 것으로…</p>
+            <p>격국은 ${t.gyeokguk || "—"}으로 판정되며, 이 틀은 인생 전반의 방향을 결정짓는 큰 축이 됩니다. 이 짜임을 가진 분들은 대체로…</p>
+          </div>
+          <div class="card">
+            <h2>재물운과 돈이 들어오는 시기</h2>
+            <p>재물의 그릇과 흐름을 보면, ${t.name} 님께 돈이 모이는 시기와 새어 나가는 시기가 뚜렷하게 갈립니다. 특히 올해는…</p>
+            <p>투자와 계약에서 조심해야 할 달이 따로 있으며, 이 시기를 피하는 것만으로도…</p>
+          </div>
+          <div class="card">
+            <h2>앞으로 10년의 큰 흐름(대운)</h2>
+            <p>지금 지나고 계신 대운과 다음 대운의 성격이 크게 달라집니다. 전환점은…</p>
+          </div>
+        </div>
+        <div class="fade"></div>
+      </div>
+
+      <div class="cta">
+        <div class="lock">🔒</div>
+        <h3>${t.name} 님의 이야기는<br>여기서부터가 진짜입니다</h3>
+        <p>맛보기에서는 사주의 겉모습만 보여드렸어요.<br>
+           나머지 이야기는 정식 풀이에서 자세히 전해 드립니다.</p>
+        <div class="list">
+          🔮 타고난 <b>성격과 기질</b>, 강점과 보완할 점<br>
+          💰 <b>재물운</b> — 돈이 들어오는 달, 지켜야 할 달<br>
+          💞 <b>인연·가정운</b> — 관계의 결과 시기<br>
+          🩺 <b>건강운</b> — 타고난 체질과 조심할 시기<br>
+          📈 <b>앞으로 10년</b> 대운의 흐름과 전환점<br>
+          🗓️ <b>2026년 열두 달</b> 월별 운세
+        </div>
+        <a class="btn btn-main" href="/#products">🔮 정식 사주풀이 보러 가기</a>
+        <a class="btn btn-sub" href="/#products">🎯 궁금한 것만 5,000원부터</a>
+        <a class="btn btn-ghost" href="/my.html">나중에 볼게요</a>
+      </div>
+    `;
+  }
+
+  (async function () {
+    if (!orderId) {
+      document.getElementById("root").innerHTML =
+        `<div class="loading">주문 정보가 없습니다.<br><a href="/my.html">마이페이지로 가기</a></div>`;
+      return;
+    }
+    try {
+      const res = await fetch(`/api/orders/${orderId}/teaser`);
+      const data = await res.json();
+      if (!data.success) {
+        document.getElementById("root").innerHTML =
+          `<div class="loading">${data.message || "불러오지 못했습니다."}<br><a href="/my.html">마이페이지로 가기</a></div>`;
+        return;
+      }
+      render(data.teaser);
+    } catch (e) {
+      document.getElementById("root").innerHTML = `<div class="loading">오류: ${e.message}</div>`;
+    }
+  })();
+</script>
+</body>
+</html>

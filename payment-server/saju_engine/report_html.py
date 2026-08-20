@@ -527,7 +527,17 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
     _stage = _life_stage(cur_age)
     _sk = _stage["key"]           # "20"~"80"
     is_senior = _stage["senior"]  # 60대 이상
-    _is_couple = _sk in ("50", "60", "70", "80")   # 배우자/가정 중심(미혼보다 기혼 가능성)
+    # ---- 혼인 여부: 사용자가 직접 고른 값을 최우선으로 쓴다 ----
+    #  (예전에는 나이로만 추측해서, 기혼자에게 '새 인연이 찾아온다'는 문장이 나가는 오류가 있었다)
+    _marital = str(meta.get("marital") or "").strip()
+    if _marital == "기혼":
+        _is_married = True
+    elif _marital == "미혼":
+        _is_married = False
+    else:
+        _is_married = _sk in ("50", "60", "70", "80")   # 선택 정보가 없을 때만 나이로 추정
+    _is_couple = _is_married          # 배우자·가정 중심으로 서술할지 여부
+    _spouse = "배우자"                 # 호칭(기혼자용)
 
     # ---- 주의/기회 시기(월) ----
     y = yongsin
@@ -702,6 +712,9 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
         if chart_paths.get("radar"):
             body_parts.append(f"<div class='chart-wrap'><img src='{chart_paths['radar']}' style='width:74%'/>"
                               "<div class='chart-cap'>재물·직업·연애·건강·귀인 — 5대 운세 종합 지수</div></div>")
+        if chart_paths.get("compare_bars"):
+            body_parts.append(f"<div class='chart-wrap'><img src='{chart_paths['compare_bars']}' style='width:92%'/>"
+                              "<div class='chart-cap'>분야별 지수를 막대로 견주어 본 표 — 가장 긴 막대가 나의 강점 분야입니다</div></div>")
         body_parts.append(_section_block("총평 한 문장",
             txt("사주원국해설", txt("ohengBasic",
                 f"{customer_name} 님은 {plain(gyeokguk.get('name',''))}의 틀 위에서 {most_oheng} 기운이 두드러지는 사주입니다."))))
@@ -877,39 +890,39 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
     body_parts.append(_pz("흐름"))
 
     # ===================== PART 3 =====================
-    if is_senior:
-        # 60대 이상: 새 연애보다 부부·동반자·가족 관계 중심
-        chapter("P3", "부부 · 가족 · 인연운",
-                "배우자·자녀와의 인연, 가족 관계의 결을 살펴봅니다.")
+    #  ★ 혼인 여부(사용자 입력)를 1순위 기준으로 삼는다.
+    #    기혼자에게는 '새 인연이 찾아온다' 같은 문장이 절대 나가지 않도록 분기한다.
+    if _is_married:
+        # ── 기혼: 배우자·가정 중심 (새 인연 서술 없음) ──
+        chapter("P3", "부부 · 가정 · 인연운",
+                f"{_spouse}와의 관계와 가정운의 흐름을 살펴봅니다.")
         _sub("관계에서 나타나는 나의 성향")
         body_parts.append(_p(txt("p3_성향", txt("연애운인연운"))))
-        _sub("배우자·가족과의 인연의 특징")
+        _sub(f"{_spouse}와 잘 맞는 부분과 보완할 부분")
         body_parts.append(_p(txt("p3_이상형", txt("결혼운배우자운"))))
         _sub("가정에 화목한 기운이 도는 시기")
-        body_parts.append(_p(f"{report_year}년에는 {_op}에 가족의 좋은 소식과 화목한 기운이 따르기 쉽습니다. 이 시기에 가족 모임이나 뜻깊은 행사를 두면 정이 더 깊어집니다."))
-        _sub("가족 관계에서 주의할 점")
-        body_parts.append(_p(txt("p3_갈등", txt("대인관계운",
-            "서운함을 마음에 담아 두기보다, 작은 고마움과 불편을 그때그때 부드럽게 나누면 가족 사이가 더 편안해집니다."))))
-        _sub("정을 오래 지키는 방법")
-        body_parts.append(_p("자녀·손주·배우자에게 '고맙다', '수고했다'는 말을 자주 건네실수록 관계의 온기가 오래 갑니다. 베풀고 나누는 마음이 곧 노년의 큰 복입니다."))
-    elif _is_couple:
-        # 40~50대: 배우자·가정운 중심
-        chapter("P3", "배우자 · 가정 · 인연운",
-                "배우자와의 관계와 가정운의 흐름을 살펴봅니다.")
-        _sub("관계에서 나타나는 나의 성향")
-        body_parts.append(_p(txt("p3_성향", txt("연애운인연운"))))
-        _sub("배우자와 잘 맞는 부분과 보완할 부분")
-        body_parts.append(_p(txt("p3_이상형", txt("결혼운배우자운"))))
-        _sub("가정운이 좋아지는 시기")
-        body_parts.append(_p(f"{report_year}년에는 {_op}에 부부·가정에 화목한 기운이 밝습니다. 함께하는 시간을 늘리면 관계가 더 단단해집니다."))
-        _sub("관계에서 주의해야 할 갈등 요소")
+        if is_senior:
+            body_parts.append(_p(
+                f"{report_year}년에는 {_op}에 가족의 좋은 소식과 화목한 기운이 따르기 쉽습니다. "
+                "이 시기에 가족 모임이나 뜻깊은 행사를 두면 정이 더 깊어집니다."))
+        else:
+            body_parts.append(_p(
+                f"{report_year}년에는 {_op}에 부부·가정에 화목한 기운이 밝습니다. "
+                f"{_spouse}와 함께 보내는 시간을 늘리면 관계가 한층 단단해집니다."))
+        _sub("가정에서 주의해야 할 갈등 요소")
         body_parts.append(_p(txt("p3_갈등", txt("대인관계운",
             "서운함을 쌓아 두었다가 한꺼번에 터뜨리면 갈등이 커집니다. 작은 불편은 그때그때 부드럽게 표현하는 편이 좋습니다."))))
-        _sub("좋은 관계를 오래 유지하는 방법")
-        body_parts.append(_p(txt("p3_유지",
-            "상대가 힘을 얻는 부분을 이해하고 배려하는 대화를 나누면 관계가 오래 갑니다. 고마움은 자주, 구체적으로 표현하세요.")))
+        _sub("정을 오래 지키는 방법")
+        if is_senior:
+            body_parts.append(_p(
+                f"자녀·손주·{_spouse}에게 '고맙다', '수고했다'는 말을 자주 건네실수록 관계의 온기가 오래 갑니다. "
+                "베풀고 나누는 마음이 곧 노년의 큰 복입니다."))
+        else:
+            body_parts.append(_p(txt("p3_유지",
+                f"{_spouse}가 힘을 얻는 부분을 이해하고 배려하는 대화를 나누면 관계가 오래 갑니다. "
+                "고마움은 자주, 구체적으로 표현하세요.")))
     else:
-        # 20~40대: 연애·결혼운 중심
+        # ── 미혼: 연애·결혼운 중심 ──
         chapter("P3", "연애 · 결혼 · 배우자운",
                 "나의 연애 성향과 인연의 시기를 살펴봅니다.")
         _sub("연애할 때 나타나는 성향")
@@ -917,7 +930,13 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
         _sub("나와 잘 맞는 상대의 특징")
         body_parts.append(_p(txt("p3_이상형", txt("결혼운배우자운"))))
         _sub("연애와 결혼운이 강해지는 시기")
-        body_parts.append(_p(f"{report_year}년에는 {_op}에 인연의 기운이 밝습니다. 소개·모임·새로운 만남에 마음을 열어 보세요."))
+        if is_senior:
+            body_parts.append(_p(
+                f"{report_year}년에는 {_op}에 사람과의 좋은 인연이 이어지기 쉽습니다. "
+                "오래된 인연이 다시 닿거나, 마음 맞는 벗을 만나는 자리에서 기운이 밝아집니다."))
+        else:
+            body_parts.append(_p(
+                f"{report_year}년에는 {_op}에 인연의 기운이 밝습니다. 소개·모임·새로운 만남에 마음을 열어 보세요."))
         _sub("관계에서 주의해야 할 갈등 요소")
         body_parts.append(_p(txt("p3_갈등", txt("대인관계운",
             "서운함을 쌓아 두었다가 한꺼번에 터뜨리면 갈등이 커집니다. 작은 불편은 그때그때 부드럽게 표현하는 편이 좋습니다."))))
@@ -930,6 +949,9 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
     # ===================== PART 4 =====================
     chapter("P4", "재물운과 경제 흐름",
             "돈이 들어오는 때와 지켜야 할 때를 살펴봅니다.")
+    if chart_paths.get("gauge_jaemul"):
+        body_parts.append(f"<div class='chart-wrap'><img src='{chart_paths['gauge_jaemul']}' style='width:62%'/>"
+                          "<div class='chart-cap'>재물운 지수 — 높을수록 재물을 모으고 지키는 힘이 큽니다</div></div>")
     _sub("타고난 재물운의 특징")
     body_parts.append(_p(txt("p4_특징", txt("재물운"))))
     _sub("돈을 모으는 방식과 소비 성향")
@@ -1022,6 +1044,9 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
     # ===================== PART 6 =====================
     chapter("P6", "건강과 생활관리",
             "타고난 체질과 건강을 챙길 시기를 살펴봅니다.")
+    if chart_paths.get("gauge_health"):
+        body_parts.append(f"<div class='chart-wrap'><img src='{chart_paths['gauge_health']}' style='width:62%'/>"
+                          "<div class='chart-cap'>건강 지수 — 높을수록 타고난 체력과 회복력이 좋습니다</div></div>")
     _sub("사주로 살펴보는 타고난 체질 경향")
     body_parts.append(_p(txt("p6_체질", txt("건강운"))))
     _sub("생활습관에서 보완할 부분")
@@ -1043,6 +1068,9 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
     # ===================== PART 7 =====================
     chapter("P7", "인간관계와 귀인운",
             "나를 돕는 사람과 관계의 결을 살펴봅니다.")
+    if chart_paths.get("gauge_gwiin"):
+        body_parts.append(f"<div class='chart-wrap'><img src='{chart_paths['gauge_gwiin']}' style='width:62%'/>"
+                          "<div class='chart-cap'>귀인 지수 — 높을수록 곁에서 돕는 사람의 힘이 큽니다</div></div>")
     _sub("나에게 도움을 주는 귀인의 특징")
     body_parts.append(_p(txt("p7_귀인", txt("귀인운", txt("대인관계운")))))
     if sinsal:
@@ -1174,11 +1202,14 @@ def build_report_html(data: dict, chart_paths: dict, meta: dict) -> str:
            "가진 재주와 표현력을 성과로 바꾸는 쪽")
         + f"에서 변화가 큽니다. 기운이 오르는 {_op} 무렵에 중요한 결정을 배치하고, {_ca}에는 확장을 미루세요."))))
     _sub("연애 · 결혼 · 가정운의 주요 시기")
+    _when = (f"{_ds['ages'][_bi]}세 무렵 기운이 오르는 대운" if _fut else "기운이 오르는 대운 시기")
     body_parts.append(_p(txt("p10_연가", txt("결혼운배우자운",
-        (f"인연과 가정의 큰 변화는 {_ds['ages'][_bi]}세 무렵 기운이 오르는 대운에서 찾아오기 쉽습니다. "
-         if _fut else "인연과 가정의 변화는 기운이 오르는 대운 시기에 찾아오기 쉽습니다. ")
-        + ("이미 가정을 이루셨다면 이 시기에 관계를 새롭게 다지는 계기가 생깁니다."
-           if is_senior or _is_couple else "이 시기에 맞춰 중요한 결정을 하면 순조롭습니다.")))))
+        (f"가정의 큰 변화는 {_when}에 찾아오기 쉽습니다. "
+         "이 시기에는 부부가 함께 새 계획을 세우거나 자녀·집 문제로 중요한 결정을 하게 되는 일이 많습니다. "
+         "두 분이 같은 방향을 보고 있는지 미리 이야기해 두면 흐름을 유리하게 탈 수 있습니다."
+         if _is_married else
+         f"인연과 가정의 큰 변화는 {_when}에 찾아오기 쉽습니다. "
+         "이 시기에 맞춰 중요한 결정을 하면 순조롭습니다.")))))
     _sub("인생의 중요한 전환점과 준비 방향")
     if _next_change is not None:
         body_parts.append(_p(f"가장 큰 전환점은 {_next_change}세 무렵 시작되는 대운입니다. 그 전에 실력·자금·관계를 준비해 두면 전환기를 기회로 바꿀 수 있습니다."))

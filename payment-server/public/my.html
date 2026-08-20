@@ -244,6 +244,15 @@
 
   // 결과지 영역(카운트다운 → 생성중 → 다운로드 1회 → 완료)
   function resultBlock(o) {
+    // 무료 맛보기 주문은 결제·대기 없이 바로 미리보기로 연결
+    if (Number(o.amount) === 0) {
+      return `
+        <div class="result-box ready">
+          <div class="rb-title">🎁 무료 맛보기 결과가 준비되어 있어요</div>
+          <button class="btn btn-primary" onclick="location.href='/preview.html?orderId=${o.orderId}'">내 사주 한눈에 보기</button>
+          <div class="rb-note">명식·오행 분포와 총평을 무료로 확인하실 수 있어요.</div>
+        </div>`;
+    }
     const released = !!o.paymentConfirmed;   // 관리자 입금확인 여부
     // 1) 입금확인 + 결과지 준비 완료 → 열람 가능
     if (hasResult(o) && released) {

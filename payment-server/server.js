@@ -137,6 +137,9 @@ function buildPdfMeta(order) {
     customerName: order.customerName || "의뢰인",
     // 이름 한자 — 결과지 개인화(자원오행·획수 분석)에 사용
     customerNameHanja: order.customerNameHanja || (order.person1 && order.person1.nameHanja) || "",
+    // 혼인 여부 — 결과지의 연애/부부 서술을 실제 상태에 맞추기 위해 반드시 전달
+    marital: (order.person1 && order.person1.marital) || "",
+    gender: (order.person1 && order.person1.gender) || "",
     reportType: isEvent ? "이벤트 무료 사주" : (isCouple ? "궁합 분석" : (order.orderName || "종합 사주 분석")),
     product: order.orderName || "",   // 상품별 결과지 섹션 선택에 사용
     relationship: order.relationship || "",   // 궁합: 연인/신혼/부부 맞춤 풀이
@@ -381,14 +384,51 @@ app.post("/api/orders/:orderId/free-claim", requireCustomer, async (req, res) =>
     return res.status(400).json({ success: false, message: "이미 접수된 주문입니다." });
   }
   try {
-    await app.locals.fulfillOrder(order.orderId);
-    // 정보 저장(무료 신청) 즉시 1시간 카운트다운을 시작한다.
-    const updated = startAutoGeneration(order.orderId);
-    res.json({ success: true, order: updated });
+    // 무료 맛보기는 PDF를 만들지 않는다. 사주 계산 결과는 주문 등록 때 이미 저장돼 있으므로
+    // 바로 '웹 미리보기'를 볼 수 있게 상태만 표시한다. (기다림 없이 즉시 확인 → 유료 전환 유도)
+    const updated = orderStore.updateOrder(order.orderId, {
+      status: "FREE_PREVIEW",
+      freeClaimedAt: new Date().toISOString(),
+    });
+    res.json({ success: true, order: updated, previewUrl: `/preview.html?orderId=${order.orderId}` });
   } catch (e) {
     console.error("이벤트 무료 신청 처리 오류:", e.message);
     res.status(500).json({ success: false, message: "무료 신청 처리 중 오류가 발생했습니다: " + e.message });
   }
+});
+
+// 무료 맛보기용 요약 데이터 (본인 주문만)
+app.get("/api/orders/:orderId/teaser", requireCustomer, (req, res) => {
+  const order = orderStore.getOrder(req.params.orderId);
+  if (!order) return res.status(404).json({ success: false, message: "주문을 찾을 수 없습니다." });
+  if (order.userId !== req.currentUser.userId) {
+    return res.status(403).json({ success: false, message: "본인 주문만 볼 수 있습니다." });
+  }
+  const r = order.sajuResult || {};
+  const yong = r.yongsin || {};
+  const gyeok = r.gyeokguk || {};
+  const interp = r.interpretation || {};
+  // 이번 달 흐름
+  const nowMonth = new Date().getMonth() + 1;
+  const wolun = (r.wolun || []).find((w) => Number(w.month) === nowMonth) || (r.wolun || [])[0] || null;
+  res.json({
+    success: true,
+    teaser: {
+      name: order.customerName || "",
+      birth: r.birth || null,
+      calendarType: (order.person1 && order.person1.calendarType) || "양력",
+      pillars: r.pillars || {},
+      ilgan: r.ilgan || "",
+      gyeokguk: gyeok.name || "",
+      ohengDistribution: r.ohengDistribution || {},
+      ohengMostCommon: r.ohengMostCommon || "",
+      ohengMissing: r.ohengMissing || [],
+      yongsin: yong.yongsin || "",
+      // 총평 한 문장(맛보기의 핵심)
+      summary: String(interp["사주원국해설"] || interp.ohengBasic || "").split(/(?<=다\.)\s/)[0] || "",
+      monthKeyword: wolun ? { month: wolun.month, ganji: wolun.ganji, keyword: wolun.keyword } : null,
+    },
+  });
 });
 
 app.post("/api/orders/:orderId/select-pg", (req, res) => {

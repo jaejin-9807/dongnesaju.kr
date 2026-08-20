@@ -372,3 +372,61 @@ def make_oheng_pentagon(oheng_dist: dict, out_path: str, ilgan=None):
     ax.annotate("", xy=(-1.42, 1.06), xytext=(-1.78, 1.06), arrowprops=dict(arrowstyle="-|>", color=RED, lw=3.2))
     ax.text(-1.34, 1.06, "상극 (서로 눌러줌)", fontsize=16, va="center", color=INK, fontweight="bold")
     fig.tight_layout(pad=0.8); fig.savefig(out_path, transparent=True); plt.close(fig)
+
+
+def make_score_gauge(score: int, title: str, out_path: str, subtitle: str = ""):
+    """한 분야의 점수를 반원 게이지로. 파트 첫머리에 넣어 직관적으로 감을 잡게 한다."""
+    _ensure_font()
+    import numpy as np
+    fig, ax = plt.subplots(figsize=(7.2, 4.2), dpi=170)
+    fig.patch.set_alpha(0)
+    s = max(0, min(100, int(score or 0)))
+    # 배경 반원(구간별 색)
+    bands = [(0, 40, "#D9CFBB"), (40, 70, "#E3CE95"), (70, 100, "#C9A24B")]
+    for lo, hi, col in bands:
+        th = np.linspace(np.pi * (1 - hi / 100), np.pi * (1 - lo / 100), 100)
+        ax.plot(np.cos(th), np.sin(th), lw=26, color=col, solid_capstyle="butt")
+    # 바늘
+    a = np.pi * (1 - s / 100)
+    ax.plot([0, 0.78 * np.cos(a)], [0, 0.78 * np.sin(a)], lw=6, color=SEAL, solid_capstyle="round")
+    ax.plot(0, 0, "o", ms=15, color=SEAL)
+    ax.text(0, -0.30, f"{s}점", ha="center", va="center", fontsize=34, fontweight="bold", color=INK)
+    ax.set_title(title, fontsize=24, fontweight="bold", color=SEAL, pad=16)
+    if subtitle:
+        ax.text(0, -0.52, subtitle, ha="center", va="center", fontsize=16, color=TOKENS["ink_soft"])
+    ax.text(-1.06, -0.06, "약", ha="center", fontsize=15, color=TOKENS["ink_soft"])
+    ax.text(1.06, -0.06, "강", ha="center", fontsize=15, color=TOKENS["ink_soft"])
+    ax.set_xlim(-1.25, 1.25); ax.set_ylim(-0.62, 1.2)
+    ax.axis("off")
+    fig.savefig(out_path, transparent=True, bbox_inches="tight")
+    plt.close(fig)
+
+
+def make_compare_bars(labels, scores, out_path, title="", highlight=None):
+    """항목별 가로 막대 비교표(예: 십성 그룹 강약, 분야별 지수)."""
+    _ensure_font()
+    import numpy as np
+    n = len(labels)
+    fig, ax = plt.subplots(figsize=(11.5, max(2.6, 0.92 * n)), dpi=170)
+    fig.patch.set_alpha(0)
+    y = np.arange(n)
+    colors = []
+    for i, s in enumerate(scores):
+        if highlight is not None and i == highlight:
+            colors.append(SEAL)
+        else:
+            colors.append(TOKENS["gold"] if s >= 60 else "#BFB49B")
+    ax.barh(y, scores, color=colors, height=0.62)
+    for i, s in enumerate(scores):
+        ax.text(s + 1.5, i, f"{int(s)}", va="center", fontsize=19, fontweight="bold", color=INK)
+    ax.set_yticks(y)
+    ax.set_yticklabels(labels, fontsize=20, fontweight="bold")
+    ax.set_xlim(0, 108)
+    ax.set_xticks([])
+    ax.invert_yaxis()
+    for sp in ("top", "right", "bottom", "left"):
+        ax.spines[sp].set_visible(False)
+    if title:
+        ax.set_title(title, fontsize=23, fontweight="bold", color=SEAL, pad=14)
+    fig.savefig(out_path, transparent=True, bbox_inches="tight")
+    plt.close(fig)

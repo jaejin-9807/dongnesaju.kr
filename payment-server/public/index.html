@@ -265,6 +265,14 @@
   <div class="card">
     <h2>📜 상품 안내</h2>
     <div class="product-list">
+      <div class="product-card" style="border:2px solid #C0392B;background:#FFF9F5;">
+        <span class="badge" style="background:#C0392B;color:#fff;">무료 체험 · 지금 바로</span>
+        <div class="name">이달의 운세 맛보기</div>
+        <div class="desc-small">내 사주의 핵심 요약과 오행 그래프를 <b>무료</b>로 확인해 보세요. 결제 없이 바로 열람됩니다.</div>
+        <div class="price" style="color:#C0392B;">0<span class="unit">원</span></div>
+        <button class="order-btn" data-product="이벤트 사주풀이" data-price="0" data-type="single" style="background:#C0392B;">무료로 보기</button>
+      </div>
+
       <div class="product-card">
         <span class="badge">BEST · 전체풀이</span>
         <div class="name">프리미엄 사주풀이</div>
@@ -1328,11 +1336,9 @@
           const fr = await fetch(`/api/orders/${currentOrder.orderId}/free-claim`, { method: "POST" });
           const fd = await fr.json();
           if (!fd.success) { showError(fd.message || "무료 신청 처리 중 문제가 발생했습니다."); return; }
-        } catch (e) { showError("무료 신청 처리 중 오류: " + e.message); return; }
-        doneDesc.innerHTML = `${currentOrder.customerName}님, 무료 이벤트 신청이 접수되었어요! 🎉<br>확인 후 '이달의 운세' 맛보기 결과지를 입력하신 연락처로 보내드릴게요.`;
-        if (typeof donePayBtn !== "undefined" && donePayBtn) donePayBtn.style.display = "none";
-        if (typeof doneLaterBtn !== "undefined" && doneLaterBtn) doneLaterBtn.textContent = "확인";
-        doneModal.classList.add("active");
+          // 기다림 없이 바로 맛보기 결과 화면으로 이동
+          window.location.href = fd.previewUrl || `/preview.html?orderId=${currentOrder.orderId}`;
+        } catch (e) { showError("무료 신청 처리 중 오류: " + e.message); }
         return;
       }
 
